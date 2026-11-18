@@ -10,7 +10,7 @@ Este proyecto se construye con Railpack y requirements.txt. No utiliza Dockerfil
    - DATA_DIR=/data
    - DEBUG=False
    - SECRET_KEY: valor aleatorio secreto de al menos 50 caracteres.
-   - APP_LOGIN_USER y APP_LOGIN_PASSWORD: credenciales propias del formulario de acceso. No tienen valores predeterminados y son independientes de los usuarios del administrador Django.
+   - El mapa y /admin/ usan los usuarios de Django guardados en SQLite. El administrador inicial está incluido en la base; sus contraseñas se guardan como hash y se entregan al propietario fuera de Git.
 4. Generar un dominio público. Railway proporciona RAILWAY_PUBLIC_DOMAIN y Django lo agrega a hosts y orígenes CSRF. Para dominios propios, definir ALLOWED_HOSTS con hosts separados por comas, sin esquema ni puerto, y CSRF_TRUSTED_ORIGINS con orígenes HTTPS separados por comas. No usar *.
 5. db.sqlite3 está incluido en el repositorio por solicitud del propietario. En el primer arranque, si /data/db.sqlite3 no existe, se inicializa desde esa base con la API de backup de SQLite. Si ya existe una base en el volumen, se conserva sin reemplazarla. Los siguientes despliegues no sobrescriben los datos de producción. Para transferir JSON y media, o restaurar manualmente una base, seguir la siguiente sección. Después activar el despliegue automático desde main.
 
@@ -44,7 +44,7 @@ Documentación oficial de transferencia: https://docs.railway.com/cli/volume
 
 ## Validar
 
-En un entorno aislado, definir SECRET_KEY, APP_LOGIN_USER, APP_LOGIN_PASSWORD y DATA_DIR apuntando a un directorio de prueba; no usar la base de trabajo para validar migraciones:
+En un entorno aislado, definir SECRET_KEY y DATA_DIR apuntando a un directorio de prueba; no usar la base de trabajo para validar migraciones:
 
 ~~~text
 python -m pip install -r requirements.txt
@@ -64,7 +64,7 @@ Después del despliegue real: abrir login, entrar al mapa, comprobar CSS/JS y Ge
 
 ## Desarrollo local
 
-Sin DATA_DIR se conservan db.sqlite3, maps/escucha_data.json y media/ en sus ubicaciones originales. Definir DEBUG=True y las dos variables APP_LOGIN_* para iniciar el servidor local. La clave temporal de desarrollo nunca se acepta con DEBUG=False.
+Sin DATA_DIR se conservan db.sqlite3, maps/escucha_data.json y media/ en sus ubicaciones originales. Definir DEBUG=True para iniciar el servidor local e ingresar con un usuario activo de Django. La clave temporal de desarrollo nunca se acepta con DEBUG=False.
 
 ## Git
 
@@ -72,6 +72,12 @@ db.sqlite3 está versionado y publicado por autorización explícita del propiet
 
 ## Error SECRET_KEY en Railway
 
-Si los logs muestran ImproperlyConfigured: Set SECRET_KEY before starting in production., agregar SECRET_KEY en Variables del servicio y aplicar el despliegue. Usar una clave aleatoria privada, diferente por servicio, sin comillas; se puede generar con python -c "import secrets; print(secrets.token_urlsafe(64))". No incluir la clave en Git ni activar DEBUG para evitar el error. Configurar también APP_LOGIN_USER y APP_LOGIN_PASSWORD para poder entrar al mapa.
+Si los logs muestran ImproperlyConfigured: Set SECRET_KEY before starting in production., agregar SECRET_KEY en Variables del servicio y aplicar el despliegue. Usar una clave aleatoria privada, diferente por servicio, sin comillas; se puede generar con python -c "import secrets; print(secrets.token_urlsafe(64))". No incluir la clave en Git ni activar DEBUG para evitar el error. El mapa utiliza el usuario y contraseña guardados en SQLite. Las variables APP_LOGIN_USER y APP_LOGIN_PASSWORD ya no se utilizan.
 
 Si el volumen ya contiene una base vacía generada en un despliegue anterior, el inicializador la conserva. Para reemplazarla por la versión local, respaldar primero la base remota, detener la aplicación y restaurar manualmente la copia local mediante el explorador del volumen; nunca sobrescribir una base con registros nuevos.
+
+## Administrador guardado en SQLite
+
+El formulario del mapa utiliza authenticate/login/logout de Django y comparte los usuarios con /admin/. El Procfile ejecuta seed_admin después de migrate: si el volumen no tiene ningún superusuario activo, importa el administrador inicial y su hash desde el db.sqlite3 del repositorio. Si ya existe un superusuario activo, conserva sus credenciales. Tampoco reemplaza un usuario existente que tenga el mismo nombre. No se publica ninguna contraseña en texto plano.
+
+Para crear otro administrador, ejecutar python manage.py createsuperuser sobre la base de destino. Para cambiar su contraseña, usar python manage.py changepassword admin en ese servicio. Estas operaciones actúan sobre DATA_DIR/db.sqlite3. Una contraseña modificada en producción no se restablece en futuros despliegues.

@@ -33,9 +33,6 @@ CSRF_COOKIE_SECURE = not DEBUG
 SECURE_SSL_REDIRECT = not DEBUG
 SECURE_HSTS_SECONDS = 3600 if not DEBUG else 0
 
-APP_LOGIN_USER = os.environ.get('APP_LOGIN_USER', '')
-APP_LOGIN_PASSWORD = os.environ.get('APP_LOGIN_PASSWORD', '')
-
 # Keep existing local files; DATA_DIR=/data places mutable files on the Railway volume.
 DATA_DIR = Path(os.environ.get('DATA_DIR', str(BASE_DIR))).resolve()
 DATA_DIR.mkdir(parents=True, exist_ok=True)

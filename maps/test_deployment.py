@@ -8,6 +8,7 @@ from unittest.mock import patch
 from urllib.parse import urlsplit
 
 from django.test import Client, TestCase, override_settings
+from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from openpyxl import Workbook
 
@@ -18,14 +19,16 @@ from maps import views
 @override_settings(
     DEBUG=False,
     ALLOWED_HOSTS=['localhost'],
-    APP_LOGIN_USER='deployment-test',
-    APP_LOGIN_PASSWORD='test-password-only',
     CSRF_TRUSTED_ORIGINS=[],
     SESSION_COOKIE_SECURE=True,
     CSRF_COOKIE_SECURE=True,
     SECURE_SSL_REDIRECT=True,
 )
 class DeploymentTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.user = get_user_model().objects.create_user(username='deployment-test', password='test-password-only')
+
     def setUp(self):
         self.client = Client(enforce_csrf_checks=True, HTTP_HOST='localhost')
 
@@ -62,7 +65,7 @@ class DeploymentTests(TestCase):
             HTTP_X_CSRFTOKEN=self.token(), HTTP_ORIGIN='https://localhost',
         )
         self.assertEqual(response.status_code, 200)
-        self.assertFalse(self.client.session.get('autenticado'))
+        self.assertNotIn('_auth_user_id', self.client.session)
 
     def test_every_mutation_rejects_missing_csrf(self):
         for endpoint in (
@@ -129,7 +132,19 @@ class DeploymentTests(TestCase):
                 response = restarted_client.get('/api/escucha-social/', secure=True)
                 self.assertEqual(response.json()['data'], stored['data'])
 
-    @override_settings(APP_LOGIN_USER='', APP_LOGIN_PASSWORD='')
-    def test_unconfigured_login_fails_closed(self):
+    def test_inactive_database_user_cannot_log_in(self):
+        self.user.is_active = False
+        self.user.save(update_fields=['is_active'])
         self.login()
-        self.assertFalse(self.client.session.get('autenticado'))
+        self.assertNotIn('_auth_user_id', self.client.session)
+
+    def test_logout_and_database_password_changes_control_access(self):
+        self.assertEqual(self.client.get('/mapa/', secure=True).status_code, 302)
+        self.login()
+        self.assertEqual(str(self.user.pk), self.client.session['_auth_user_id'])
+        self.client.get('/logout/', secure=True)
+        self.assertNotIn('_auth_user_id', self.client.session)
+        self.user.set_password('a-new-database-password')
+        self.user.save(update_fields=['password'])
+        self.assertEqual(self.login().status_code, 200)
+        self.assertNotIn('_auth_user_id', self.client.session)

@@ -10,7 +10,7 @@ from django.db.models import Sum, Avg, Count
 from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.conf import settings
-from django.utils.crypto import constant_time_compare
+from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
 from elections.models import VotacionAyuntamiento, VotacionDiputacion, Promovido, Encuesta
 
 ESCUCHA_FILE = settings.ESCUCHA_FILE
@@ -40,32 +40,31 @@ def safe_percentage(val):
     return d
 
 def login_view(request):
-    if request.session.get('autenticado'):
+    if request.user.is_authenticated:
         return redirect('mapa')
     error = None
     if request.method == 'POST':
         usuario = request.POST.get('usuario', '').strip()
-        password = request.POST.get('password', '').strip()
-        if (settings.APP_LOGIN_USER and settings.APP_LOGIN_PASSWORD
-                and constant_time_compare(usuario, settings.APP_LOGIN_USER)
-                and constant_time_compare(password, settings.APP_LOGIN_PASSWORD)):
-            request.session.cycle_key()
-            request.session['autenticado'] = True
-            request.session['usuario'] = 'administrador'
+        password = request.POST.get('password', '')
+        user = authenticate(request, username=usuario, password=password)
+        if user is not None:
+            auth_login(request, user)
             return redirect('mapa')
-        else:
-            error = 'Credenciales incorrectas. Verifica tu usuario y contraseña.'
+        error = 'Credenciales incorrectas. Verifica tu usuario y contraseña.'
     return render(request, 'maps/login.html', {'error': error})
 
+
 def logout_view(request):
-    request.session.flush()
+    auth_logout(request)
     return redirect('login')
+
 
 @ensure_csrf_cookie
 def mapa_view(request):
-    if not request.session.get('autenticado'):
+    if not request.user.is_authenticated:
         return redirect('login')
     return render(request, 'maps/mapa.html')
+
 
 def calcular_proyeccion_generica(LN, Vt, historicos, eg_dinamico, Ss=0.6, promovidos_count=0, casillas=0):
     if LN == 0 or Vt == 0: 

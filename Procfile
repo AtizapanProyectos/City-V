@@ -1,1 +1,1 @@
-web: python scripts/prepare_data.py && python manage.py migrate --noinput && python manage.py collectstatic --noinput && exec gunicorn city_manager.wsgi:application --bind 0.0.0.0:$PORT --workers 1 --access-logfile - --error-logfile -
+web: python scripts/prepare_data.py && python manage.py migrate --noinput && python manage.py seed_admin && python manage.py collectstatic --noinput && exec gunicorn city_manager.wsgi:application --bind 0.0.0.0:$PORT --workers 1 --access-logfile - --error-logfile -
