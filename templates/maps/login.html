@@ -1,0 +1,439 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acceso · Centro de Mando Electoral Atizapán</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --pvem-header: #38a838;
+            --pvem-dark:   #1b5e20;
+            --pvem-mid:    #4caf50;
+            --pvem-sage:   #81c784;
+            --pvem-mint:   #f1f8f1;
+            --pvem-pill:   #e6f4e6;
+            --pvem-red:    #b8252d;
+            --ink:         #1e293b;
+            --font: 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: var(--font);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            position: relative;
+            /* Fondo blanco limpio con destellos sutiles */
+            background-color: #ffffff;
+            background-image: 
+                radial-gradient(at 12% 15%, rgba(56, 168, 56, 0.10) 0px, transparent 50%),
+                radial-gradient(at 88% 85%, rgba(129, 199, 132, 0.14) 0px, transparent 50%),
+                radial-gradient(at 85% 12%, rgba(76, 175, 80, 0.08) 0px, transparent 40%);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Malla de puntos sutil en verde sobre el fondo blanco */
+        .electoral-grid-bg {
+            position: absolute;
+            inset: 0;
+            background-image: 
+                radial-gradient(rgba(56, 168, 56, 0.16) 1.25px, transparent 1.25px),
+                linear-gradient(to right, rgba(56, 168, 56, 0.035) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(56, 168, 56, 0.035) 1px, transparent 1px);
+            background-size: 34px 34px, 68px 68px, 68px 68px;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* Manchas orgánicas verdes animadas (Liquid Blobs) sobre fondo blanco */
+        .blob {
+            position: absolute;
+            pointer-events: none;
+            z-index: 1;
+            filter: blur(42px);
+            opacity: 0.55;
+            animation: blobMorph 18s ease-in-out infinite both alternate;
+        }
+        .blob-1 {
+            width: 480px;
+            height: 480px;
+            top: -140px;
+            left: -120px;
+            background: linear-gradient(135deg, #a5d6a7 0%, #4caf50 100%);
+            border-radius: 42% 58% 70% 30% / 45% 45% 55% 55%;
+        }
+        .blob-2 {
+            width: 440px;
+            height: 440px;
+            bottom: -130px;
+            right: -100px;
+            background: linear-gradient(135deg, #c8e6c9 0%, #38a838 100%);
+            border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+            animation-delay: -6s;
+            animation-duration: 22s;
+        }
+        .blob-3 {
+            width: 320px;
+            height: 320px;
+            top: 58%;
+            left: 12%;
+            background: linear-gradient(135deg, #e8f5e9 0%, #81c784 100%);
+            border-radius: 35% 65% 50% 50% / 50% 40% 60% 50%;
+            animation-delay: -11s;
+            opacity: 0.65;
+        }
+        .blob-4 {
+            width: 290px;
+            height: 290px;
+            top: 10%;
+            right: 16%;
+            background: linear-gradient(135deg, #dcedc8 0%, #66bb6a 100%);
+            border-radius: 50% 50% 35% 65% / 40% 60% 40% 60%;
+            animation-delay: -3s;
+            opacity: 0.45;
+        }
+
+        @keyframes blobMorph {
+            0% {
+                border-radius: 42% 58% 70% 30% / 45% 45% 55% 55%;
+                transform: translate(0, 0) rotate(0deg) scale(1);
+            }
+            50% {
+                border-radius: 60% 40% 30% 70% / 60% 30% 70% 40%;
+                transform: translate(35px, -25px) rotate(12deg) scale(1.08);
+            }
+            100% {
+                border-radius: 35% 65% 60% 40% / 55% 60% 40% 45%;
+                transform: translate(-25px, 30px) rotate(-8deg) scale(0.96);
+            }
+        }
+
+        /* Íconos electorales flotando en verde suave */
+        .floating-icons {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 2;
+            overflow: hidden;
+        }
+        .vote-icon {
+            position: absolute;
+            color: rgba(56, 168, 56, 0.13);
+            animation: subirIcono 22s linear infinite;
+        }
+        @keyframes subirIcono {
+            0% { transform: translateY(105vh) rotate(0deg); opacity: 0; }
+            15% { opacity: 1; }
+            85% { opacity: 1; }
+            100% { transform: translateY(-15vh) rotate(25deg); opacity: 0; }
+        }
+
+        /* Tarjeta de login en verde suave con cabecera estilo tarjetas PVEM */
+        .login-wrapper {
+            position: relative;
+            z-index: 10;
+            width: 92%;
+            max-width: 435px;
+            background: linear-gradient(180deg, #f3faf3 0%, #ffffff 42%, #f6fbf6 100%);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            border-radius: 24px;
+            padding: 0 0 32px 0;
+            box-shadow: 
+                0 24px 60px -15px rgba(27, 94, 32, 0.18),
+                0 0 0 1.5px #d4ead4;
+            text-align: center;
+            animation: aparecerCard 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+            overflow: hidden;
+        }
+
+        /* Franja superior estilo tarjetas CEN / SENADO / ESTADOS */
+        .login-card-top {
+            background: linear-gradient(135deg, #38a838 0%, #2e8b2e 100%);
+            padding: 16px 24px 46px;
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .login-card-body {
+            padding: 0 36px;
+            margin-top: -38px;
+        }
+
+        @keyframes aparecerCard {
+            from { opacity: 0; transform: translateY(28px) scale(0.96); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .logo-badge {
+            width: 88px;
+            height: 88px;
+            margin: 0 auto 14px;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: 
+                0 10px 25px rgba(27, 94, 32, 0.16),
+                0 0 0 5px #eaf6ea;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 13px;
+            position: relative;
+        }
+        .logo-badge img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+
+        .electoral-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--pvem-pill);
+            border: 1px solid #cce8cc;
+            color: #257325;
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.7px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            margin-bottom: 12px;
+        }
+        .electoral-pill svg {
+            width: 13px;
+            height: 13px;
+            stroke: var(--pvem-header);
+        }
+
+        .login-title {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--ink);
+            letter-spacing: -0.4px;
+            margin-bottom: 4px;
+        }
+        .login-subtitle {
+            font-size: 12px;
+            font-weight: 600;
+            color: #64748b;
+            margin-bottom: 24px;
+        }
+
+        .error-alert {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: var(--pvem-red);
+            font-size: 12px;
+            font-weight: 700;
+            padding: 10px 14px;
+            border-radius: 12px;
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            animation: shakeError 0.4s ease;
+        }
+        @keyframes shakeError {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-6px); }
+            75% { transform: translateX(6px); }
+        }
+
+        .form-group {
+            text-align: left;
+            margin-bottom: 16px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 10.5px;
+            font-weight: 800;
+            color: #257325;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+        .input-box {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        .input-box svg {
+            position: absolute;
+            left: 14px;
+            width: 18px;
+            height: 18px;
+            color: var(--pvem-header);
+            transition: color 0.25s;
+            pointer-events: none;
+        }
+        .input-box input {
+            width: 100%;
+            padding: 13px 14px 13px 42px;
+            font-family: var(--font);
+            font-size: 13.5px;
+            font-weight: 600;
+            color: var(--ink);
+            background: #f4faf4;
+            border: 1.5px solid #cde5cd;
+            border-radius: 12px;
+            outline: none;
+            transition: all 0.25s ease;
+        }
+        .input-box input::placeholder {
+            color: #94a3b8;
+            font-weight: 500;
+        }
+        .input-box input:focus {
+            background: #ffffff;
+            border-color: var(--pvem-header);
+            box-shadow: 0 0 0 4px rgba(56, 168, 56, 0.14);
+        }
+        .input-box:focus-within svg {
+            color: var(--pvem-dark);
+        }
+
+        .btn-ingresar {
+            width: 100%;
+            margin-top: 8px;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #38a838 0%, #257a25 100%);
+            color: #ffffff;
+            font-family: var(--font);
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            cursor: pointer;
+            box-shadow: 0 10px 22px -6px rgba(56, 168, 56, 0.45);
+            transition: all 0.25s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .btn-ingresar:hover {
+            background: linear-gradient(135deg, #2e962e 0%, #1b5e20 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 14px 26px -6px rgba(56, 168, 56, 0.55);
+        }
+        .btn-ingresar:active {
+            transform: translateY(0);
+        }
+
+        .login-footer {
+            margin-top: 24px;
+            padding-top: 15px;
+            border-top: 1px solid #dfeedf;
+            display: flex;
+            justify-content: space-around;
+            font-size: 10.5px;
+            font-weight: 700;
+            color: #475569;
+        }
+        .footer-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .footer-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--pvem-header);
+            box-shadow: 0 0 6px var(--pvem-header);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="electoral-grid-bg"></div>
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+    <div class="blob blob-4"></div>
+
+    <div class="floating-icons">
+        <svg class="vote-icon" style="left: 8%; width: 64px; height: 64px; animation-duration: 20s;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        <svg class="vote-icon" style="left: 24%; width: 48px; height: 48px; animation-duration: 26s; animation-delay: -6s;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+        <svg class="vote-icon" style="left: 78%; width: 70px; height: 70px; animation-duration: 23s; animation-delay: -11s;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+        <svg class="vote-icon" style="left: 62%; width: 52px; height: 52px; animation-duration: 19s; animation-delay: -3s;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21.21 15.89A10 10 0 118 2.83"/><path d="M22 12A10 10 0 0012 2v10z"/></svg>
+    </div>
+
+    <main class="login-wrapper">
+        <div class="login-card-top">
+            PARTIDO VERDE · ESTADO DE MÉXICO
+        </div>
+
+        <div class="login-card-body">
+            <div class="logo-badge">
+                <img src="{% static 'gota.PNG' %}" alt="Logo Partido Verde">
+            </div>
+
+            <div class="electoral-pill">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                Sistema de Inteligencia Electoral
+            </div>
+
+            <h1 class="login-title">Atizapán de Zaragoza</h1>
+            <p class="login-subtitle">Centro de Mando · Cómputo de Votos y Proyecciones</p>
+
+            {% if error %}
+            <div class="error-alert" role="alert">
+                <span>⚠️ {{ error }}</span>
+            </div>
+            {% endif %}
+
+            <form method="POST" action="{% url 'login' %}">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="usuario">Usuario</label>
+                    <div class="input-box">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        <input type="text" id="usuario" name="usuario" placeholder="Ingresa tu usuario" required autofocus autocomplete="username">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Contraseña</label>
+                    <div class="input-box">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                        <input type="password" id="password" name="password" placeholder="••••••••" required autocomplete="current-password">
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-ingresar">
+                    Acceder al Mapa Electoral
+                </button>
+            </form>
+
+            <div class="login-footer">
+                <span class="footer-item"><i class="footer-dot"></i> Padrón Activo</span>
+                <span class="footer-item">📊 Conteo Seccional</span>
+                <span class="footer-item">🗳️ Voto Seguro</span>
+            </div>
+        </div>
+    </main>
+
+</body>
+</html>

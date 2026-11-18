@@ -1,0 +1,444 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CityManager · Centro de Mando Electoral Atizapán</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <script type="text/javascript" src="https://gc.kes.v2.scr.kaspersky-labs.com/7EA5E9BB-55E1-4C31-9C21-4943DDFED2E4/main.js?attr=RtWj8j_PQG4sbQBOg3NCIaa_UoOQCbEhexDwPh5Ibp19jJtM4zlhz2JP4RUb6nYbPLSyg_pEWwlq1DHzhozujkY1pnV8CvcPs3-nIyKYZzu5LcfFyG497e_V8RwvkZaA4nawSE8FSgFy0hl5MPyaHo7Ctec_61gfO5iKNBLXWg63eVKxc8qZJpqLoM96dGgm67SR_Yp0naDitwT8Jjy_XdX-D7W4nE4n9NMR44gCjZNWOGH4Kj94lUR3_eJmoX_EW2L5_c794imjPQ-BB8Tu1A76QRMK2ggMgVUKvkxz5gg2Ay_9ofSY2kBbaIbFAIpYzIvAkVTEHHmWDXTpoKjMCQ" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="{% static 'css/mapa.css' %}?v=11.0">
+</head>
+<body>
+
+    <div id="toast-notificacion" class="toast-exito" role="status" aria-live="polite">
+        Procesamiento completado exitosamente
+    </div>
+
+    <div id="loading-overlay" class="pantalla-carga" role="alert" aria-busy="true">
+        <div class="spinner"></div>
+        <h3>Procesando datos</h3>
+        <p>Actualizando modelos predictivos</p>
+    </div>
+
+    <main id="dashboard-layout">
+
+        <!-- Superior izquierdo · ESCUCHA SOCIAL -->
+        <section id="cuadrante-superior-izquierdo" class="cuadrante" aria-label="Escucha social">
+            <div class="panel-header">
+                <h2>Escucha <span class="acento">Social</span></h2>
+            </div>
+
+            <div class="panel-body">
+                <div id="escucha-vacio" class="estado-vacio">
+                    <span>Sin datos procesados. Carga los reportes desde el panel superior del mapa.</span>
+                </div>
+
+                <div id="escucha-contenido" style="display: none; flex-direction: column; flex: 1; min-height: 0;">
+                    <div class="tabs-metricas" id="escucha-tabs"></div>
+
+                    <!-- Sentimiento: tres donas circulares completas -->
+                    <div id="escucha-vista-dual" style="display: none; flex-direction: column; flex: 1; min-height: 0;">
+                        <div class="escucha-dual-wrap">
+                            <div class="dona-candidato">
+                                <div class="dona-lienzo"><canvas id="chart-escucha-c1"></canvas></div>
+                                <h3 id="ui-cand1-name-dual" class="dona-nombre">CANDIDATO 1</h3>
+                                <div class="dona-leyenda" style="flex-direction: column; gap: 4px;">
+                                    <span class="dona-chip"><i class="punto-pos"></i><span id="ui-cand1-pos">Pos: 0</span></span>
+                                    <span class="dona-chip"><i class="punto-neg"></i><span id="ui-cand1-neg">Neg: 0</span></span>
+                                </div>
+                            </div>
+                            <div class="dona-candidato">
+                                <div class="dona-lienzo"><canvas id="chart-escucha-c2"></canvas></div>
+                                <h3 id="ui-cand2-name-dual" class="dona-nombre">CANDIDATO 2</h3>
+                                <div class="dona-leyenda" style="flex-direction: column; gap: 4px;">
+                                    <span class="dona-chip"><i class="punto-pos"></i><span id="ui-cand2-pos">Pos: 0</span></span>
+                                    <span class="dona-chip"><i class="punto-neg"></i><span id="ui-cand2-neg">Neg: 0</span></span>
+                                </div>
+                            </div>
+                            <div class="dona-candidato">
+                                <div class="dona-lienzo"><canvas id="chart-escucha-c3"></canvas></div>
+                                <h3 id="ui-cand3-name-dual" class="dona-nombre">CANDIDATO 3</h3>
+                                <div class="dona-leyenda" style="flex-direction: column; gap: 4px;">
+                                    <span class="dona-chip"><i class="punto-pos"></i><span id="ui-cand3-pos">Pos: 0</span></span>
+                                    <span class="dona-chip"><i class="punto-neg"></i><span id="ui-cand3-neg">Neg: 0</span></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Resto de métricas: barras -->
+                    <div id="escucha-vista-comparativa" style="display: flex; flex-direction: column; flex: 1; min-height: 0;">
+                        <div class="escucha-comp-wrap"><canvas id="chart-escucha-comp"></canvas></div>
+                        <div class="escucha-comp-chips">
+                            <div class="chip-candidato">
+                                <span class="chip-dot" id="dot-cand1" style="background: var(--pan-blue);"></span>
+                                <span id="ui-cand1-name-comp">Cand 1</span>
+                                <span id="ui-cand1-val">-</span>
+                                <span id="ui-cand1-pct">-</span>
+                            </div>
+                            <div class="chip-candidato">
+                                <span class="chip-dot" id="dot-cand2" style="background: var(--c-magenta);"></span>
+                                <span id="ui-cand2-name-comp">Cand 2</span>
+                                <span id="ui-cand2-val">-</span>
+                                <span id="ui-cand2-pct">-</span>
+                            </div>
+                            <div class="chip-candidato">
+                                <span class="chip-dot" id="dot-cand3" style="background: #B3282D;"></span>
+                                <span id="ui-cand3-name-comp">Cand 3</span>
+                                <span id="ui-cand3-val">-</span>
+                                <span id="ui-cand3-pct">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Superior derecho · DETALLE DE SECCIÓN -->
+        <section id="cuadrante-superior-derecho" class="cuadrante" aria-label="Detalle de sección">
+            <div class="panel-header">
+                <h2 class="titulo-seccion">Sección <span class="acento" id="ui-seccion-id">---</span></h2>
+                <button id="btn-toggle-proyeccion" class="btn-proyeccion" type="button" style="display: none;">Ver proyección</button>
+            </div>
+
+            <div class="tabs-container">
+                <button type="button" class="tab-btn activo-gradiente" id="tab-ayuntamiento" onclick="cambiarPestana('ayuntamiento')">Ayuntamiento</button>
+                <button type="button" class="tab-btn" id="tab-diputacion" onclick="cambiarPestana('diputacion')">Diputaciones</button>
+            </div>
+
+            <div class="panel-body">
+                <div id="local-dynamic-content" class="local-dynamic-content">
+                    <div class="stats-header" id="stats-container">
+                        <div class="stat-cell"><span class="lbl">Casillas</span><b id="stat-casillas">-</b></div>
+                        <div class="stat-cell"><span class="lbl">Lista nominal</span><b id="stat-nominal">-</b></div>
+                        <div class="stat-cell"><span class="lbl">Votos válidos</span><b id="stat-votos">-</b></div>
+                        <div class="stat-cell">
+                            <span class="lbl">Participación</span><b id="stat-participacion">-</b>
+                            <div class="barra-progreso"><div class="barra-progreso-fill" id="barra-participacion-local"></div></div>
+                        </div>
+                    </div>
+
+                    <div class="ganador-row">
+                        <div class="ganador-highlight" id="stat-ganador">Ganador: -</div>
+                        <div id="stat-meta-container" style="display: none;">
+                            Meta segura (50% + 1): <span id="stat-meta">-</span> votos
+                        </div>
+                    </div>
+
+                    <div class="grafica-principal-wrap">
+                        <canvas id="grafica-principal"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Inferior izquierdo · PROMOVIDOS -->
+        <section id="cuadrante-inferior-izquierdo" class="cuadrante" aria-label="Promovidos">
+            <div class="panel-header"> 
+                <h2>Promovidos <span class="acento" id="label-seccion-promovidos">Global</span></h2>
+                <div style="display: flex; gap: 6px; align-items: center;">
+                    <button type="button" class="btn-proyeccion" onclick="abrirModalPromovidosTab('capturar')" style="padding: 6px 12px; font-size: 10.5px;">+ Capturar</button>
+                    <button type="button" id="btn-vista-completa" class="btn-magenta" style="padding: 6px 12px; font-size: 10.5px;">Vista completa</button>
+                </div>
+            </div>
+
+            <div class="panel-body">
+                <div class="tabs-promovidos" style="justify-content: space-between; align-items: center;">
+                    <div style="display: flex; gap: 6px;">
+                        <button type="button" class="tab-prom-pill activo" id="tab-prom-mini-lista" onclick="cambiarVistaMiniPromovidos('lista')">Padrón (<span id="contador-promovidos-mini">0</span>)</button>
+                        <button type="button" class="tab-prom-pill" id="tab-prom-mini-excel" onclick="cambiarVistaMiniPromovidos('excel')">Cargar Excel</button>
+                    </div>
+                    <button type="button" id="btn-limpiar-promovidos-mini" class="btn-peligro" onclick="reiniciarPromovidos()" style="padding: 4px 10px; font-size: 10px;">Vaciar</button>
+                </div>
+
+                <!-- Sub-vista 1: Lista -->
+                <div id="vista-promovidos-lista" class="vista-lista-scroll">
+                    <table class="tabla-promovidos">
+                        <thead>
+                            <tr><th>Nombre</th><th>Sección</th><th>Estatus</th></tr>
+                        </thead>
+                        <tbody id="tabla-promovidos-body"></tbody>
+                    </table>
+                </div>
+
+                <!-- Sub-vista 2: Cargar Excel desde el cuadrante -->
+                <div id="vista-promovidos-excel" class="drop-zone-quadrant" style="display: none;" onclick="document.getElementById('file-promovidos-global').click()">
+                    <div class="drop-zone-inner">
+                        <span style="font-size: 22px;">📄</span>
+                        <b>Cargar archivo Excel de Promovidos</b>
+                        <small>Haz clic aquí para seleccionar tu archivo .xlsx o .xls</small>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- ============ SIDEBAR · RESULTADOS GLOBALES ============ -->
+    <aside id="panel-totales-municipio" aria-label="Resultados globales">
+        <div class="sidebar-brand">
+            <div class="marca-dot"></div>
+            <div>
+                <h1 class="sidebar-titulo">Atizapán de Zaragoza</h1>
+                <p class="sidebar-subtitulo">Resultados globales</p>
+            </div>
+        </div>
+
+        <div class="sidebar-topbar">
+            <div class="tabs-container-mini" style="flex: 1;">
+                <button type="button" class="tab-btn-mini activo" id="tab-global-ayuntamiento" onclick="cambiarPestanaGlobal('ayuntamiento')">Ayuntamiento</button>
+                <button type="button" class="tab-btn-mini" id="tab-global-diputacion" onclick="cambiarPestanaGlobal('diputacion')">Diputaciones</button>
+            </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; margin: 4px 0 12px;">
+            <button id="btn-toggle-proyeccion-global" class="btn-proyeccion" type="button" style="display: none;">Ver proyección</button>
+        </div>
+
+        <div id="global-dynamic-content">
+            <div class="global-stats-grid tarjeta-perla">
+                <div class="global-stat-item"><span>Casillas</span><b id="g-stat-casillas">-</b></div>
+                <div class="global-stat-item"><span>L. Nominal</span><b id="g-stat-nominal">-</b></div>
+                <div class="global-stat-item"><span>Votos válidos</span><b id="g-stat-votos">-</b></div>
+                <div class="global-stat-item">
+                    <span>Participación</span><b id="g-stat-participacion">-</b>
+                    <div class="barra-progreso"><div class="barra-progreso-fill" id="barra-participacion-global"></div></div>
+                </div>
+            </div>
+
+            <div class="tarjeta-perla global-ganador" id="g-stat-ganador">Ganador: -</div>
+
+            <div id="g-stat-meta-container" style="display: none;">
+                Meta segura (50% + 1): <span id="g-stat-meta">-</span> votos
+            </div>
+
+            <div class="tarjeta-perla grafica-card-sidebar">
+                <canvas id="grafica-global"></canvas>
+            </div>
+        </div>
+
+        <button type="button" onclick="abrirModalEncuestas()" class="btn-gestion-encuestas">Gestión de encuestas</button>
+    </aside>
+
+    <!-- ============ MAPA ============ -->
+    <div id="mapa-wrapper">
+        <div id="buscador-contenedor">
+            <input type="number" id="input-buscador" placeholder="Buscar sección..." aria-label="Número de sección">
+            <button type="button" id="btn-buscar">Buscar</button>
+            <button type="button" id="btn-restaurar-mapa" style="display: none;">Volver al municipio</button>
+        </div>
+
+        <div id="botones-globales-flotantes">
+            <button class="btn-proyeccion" onclick="document.getElementById('file-promovidos-global').click()">Cargar Padrón Global (Excel)</button>
+            <button class="btn-magenta" onclick="document.getElementById('file-escucha-global').click()">Cargar Escucha Social (3 Excel)</button>
+
+            <input type="file" id="file-promovidos-global" accept=".xlsx, .xls" style="display: none;">
+            <input type="file" id="file-escucha-global" accept=".xlsx, .xls" multiple style="display: none;" onchange="procesarArchivosEscucha(event)">
+        </div>
+
+        <!-- INSIGNIA DE BIENVENIDA EN ESQUINA INFERIOR IZQUIERDA DEL MAPA -->
+        <div id="badge-bienvenida" class="badge-admin-corner">
+            <span class="punto-online"></span>
+            <span>Bienvenido, <b>administrador</b></span>
+            <a href="{% url 'logout' %}" class="link-salir" title="Cerrar sesión">Salir</a>
+        </div>
+
+        <!-- Glosario de intensidad de voto -->
+        <div id="leyenda-mapa">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <h4 style="margin: 0; font-size: 12.5px; font-weight: 800; color: var(--pan-navy); text-transform: uppercase;">Intensidad de Voto</h4>
+                <button type="button" id="btn-limpiar-filtro-mapa" style="display: none; background: none; border: none; color: var(--c-magenta); font-size: 10px; font-weight: 800; cursor: pointer; text-decoration: underline; padding: 0;">Limpiar</button>
+            </div>
+            <div class="leyenda-item" data-opacidad="0.95" title="Click para filtrar">
+                <div class="color-box" style="background: linear-gradient(to right, #0055A6 50%, #B3282D 50%); opacity: 0.95;"></div> 75% a 100% (Súper intenso)
+            </div>
+            <div class="leyenda-item" data-opacidad="0.75" title="Click para filtrar">
+                <div class="color-box" style="background: linear-gradient(to right, #0055A6 50%, #B3282D 50%); opacity: 0.75;"></div> 50% a 75% (Muy intenso)
+            </div>
+            <div class="leyenda-item" data-opacidad="0.55" title="Click para filtrar">
+                <div class="color-box" style="background: linear-gradient(to right, #0055A6 50%, #B3282D 50%); opacity: 0.55;"></div> 25% a 50% (Intenso)
+            </div>
+            <div class="leyenda-item" data-opacidad="0.35" title="Click para filtrar">
+                <div class="color-box" style="background: linear-gradient(to right, #0055A6 50%, #B3282D 50%); opacity: 0.35;"></div> 10% a 25% (Tenue)
+            </div>
+        </div>
+
+        <div id="mapa-atizapan"></div>
+    </div>
+
+    <!-- ============ MODAL · GESTIÓN INTEGRAL DE PROMOVIDOS ============ -->
+    <div id="modal-promovidos" class="modal-overlay">
+        <div class="modal-content" style="max-width: 1050px;">
+            <span class="close-modal" id="close-modal" role="button" aria-label="Cerrar">&times;</span>
+            <h2 class="modal-titulo">Padrón y Gestión de Promovidos <span id="modal-label-seccion" style="color: var(--c-magenta);">(Todas)</span></h2>
+
+            <div class="tabs-container" style="margin: 0 0 16px; justify-content: space-between; align-items: center;">
+                <div style="display: flex; gap: 4px;">
+                    <button type="button" class="tab-btn activo" id="tab-modal-prom-lista" onclick="cambiarTabModalPromovidos('lista')">Directorio Registrado</button>
+                    <button type="button" class="tab-btn" id="tab-modal-prom-capturar" onclick="cambiarTabModalPromovidos('capturar')">+ Capturar Promovido</button>
+                    <button type="button" class="tab-btn" id="tab-modal-prom-excel" onclick="cambiarTabModalPromovidos('excel')">Cargar Excel (.xlsx)</button>
+                </div>
+                <button type="button" id="btn-reiniciar-promovidos" class="btn-peligro" onclick="reiniciarPromovidos()">Vaciar todo el padrón</button>
+            </div>
+
+            <!-- Pestaña 1: Directorio Completo -->
+            <div id="vista-modal-prom-lista" style="display: block;">
+                <div class="modal-tabla-scroll">
+                    <table class="tabla-promovidos">
+                        <thead>
+                            <tr>
+                                <th>Nombre</th><th>Teléfono</th><th>Dirección</th>
+                                <th>Sección</th><th>Medio</th><th>Fecha</th><th>Estatus</th>
+                            </tr>
+                        </thead>
+                        <tbody id="modal-tabla-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Pestaña 2: Formulario para llenar datos de promovido -->
+            <div id="vista-modal-prom-capturar" style="display: none;">
+                <form id="form-nuevo-promovido" onsubmit="guardarNuevoPromovido(event)">
+                    <div class="form-encuesta-grid" style="grid-template-columns: repeat(3, 1fr); gap: 14px;">
+                        <label>Nombre completo *
+                            <input type="text" id="prom-nombre" placeholder="Ej. Juan Pérez López" required>
+                        </label>
+                        <label>Teléfono móvil *
+                            <input type="text" id="prom-telefono" placeholder="Ej. 55 1234 5678" required>
+                        </label>
+                        <label>Sección electoral *
+                            <input type="number" id="prom-seccion" placeholder="Ej. 281" required>
+                        </label>
+                        <label>Correo electrónico
+                            <input type="text" id="prom-correo" placeholder="correo@ejemplo.com">
+                        </label>
+                        <label>Red social (FB / IG)
+                            <input type="text" id="prom-red" placeholder="@usuario">
+                        </label>
+                        <label>Distrito / Zona
+                            <input type="text" id="prom-distrito" placeholder="Ej. Distrito Local">
+                        </label>
+                        <label>¿Confirma apoyo?
+                            <select id="prom-confirma" class="select-modal-prom">
+                                <option value="Sí">Sí (Confirmado)</option>
+                                <option value="Pendiente">Pendiente (Por visitar)</option>
+                                <option value="No">No (Inalcanzable)</option>
+                            </select>
+                        </label>
+                        <label>Medio de contacto preferido
+                            <select id="prom-medio" class="select-modal-prom">
+                                <option value="WhatsApp">WhatsApp</option>
+                                <option value="Visita Presencial">Visita Presencial</option>
+                                <option value="Llamada">Llamada Telefónica</option>
+                                <option value="Redes Sociales">Redes Sociales</option>
+                            </select>
+                        </label>
+                        <label>Responsable de captura
+                            <input type="text" id="prom-responsable" placeholder="Ej. Brigada 1">
+                        </label>
+                        <label class="campo-full">Dirección completa
+                            <input type="text" id="prom-direccion" placeholder="Calle, número, colonia, C.P.">
+                        </label>
+                    </div>
+                    <div class="form-acciones" style="margin-top: 22px;">
+                        <button type="button" class="tab-btn" onclick="cambiarTabModalPromovidos('lista')">Ver directorio</button>
+                        <button type="submit" id="btn-submit-promovido" class="tab-btn activo-gradiente">Guardar Promovido en Padrón</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Pestaña 3: Subir Excel -->
+            <div id="vista-modal-prom-excel" style="display: none;">
+                <div class="drop-zone-modal" onclick="document.getElementById('file-promovidos-global').click()">
+                    <div style="font-size: 38px; margin-bottom: 10px;">📊</div>
+                    <h3 style="color: var(--pan-navy); font-size: 16px; margin-bottom: 6px;">Selecciona tu archivo Excel de Promovidos</h3>
+                    <p style="color: var(--c-muted); font-size: 12.5px; margin-bottom: 16px;">El sistema leerá la pestaña <b>Registro</b> e importará automáticamente todos los promovidos.</p>
+                    <button type="button" class="btn-proyeccion" style="padding: 10px 24px; font-size: 12.5px;">Buscar archivo .xlsx en mi equipo</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ MODAL · GESTIÓN DE ENCUESTAS ============ -->
+    <div id="modal-encuestas" class="modal-overlay">
+        <div class="modal-content modal-sm" style="max-width: 950px;">
+            <span class="close-modal" onclick="cerrarModalEncuestas()" role="button" aria-label="Cerrar">&times;</span>
+            <h2 class="modal-titulo centrado">Gestión de encuestas</h2>
+
+            <div class="tabs-container" style="margin: 0 0 18px;">
+                <button type="button" class="tab-btn activo" id="tab-modal-promedio" onclick="cambiarTabEncuestas('promedio')">Promedio</button>
+                <button type="button" class="tab-btn" id="tab-modal-historial" onclick="cambiarTabEncuestas('historial')" style="background: transparent; color: #777;">Historial</button>
+                <button type="button" class="tab-btn" id="tab-modal-agregar" onclick="cambiarTabEncuestas('agregar')" style="background: transparent; color: #777;">Agregar Nueva</button>
+            </div>
+
+            <div id="vista-modal-promedio" style="display: block;">
+                <div class="grafica-modal">
+                    <canvas id="grafica-encuestas"></canvas>
+                </div>
+                <div id="promedio-vacio" class="estado-vacio">
+                    <span>Aún no hay encuestas registradas. Agrega la primera en la pestaña "Agregar Nueva".</span>
+                </div>
+            </div>
+
+            <div id="vista-modal-historial" style="display: none;">
+                <div class="historial-toolbar">
+                    <button type="button" id="btn-reiniciar-encuestas" class="btn-peligro" disabled>Reiniciar historial de encuestas</button>
+                </div>
+                <div class="historial-scroll">
+                    <table class="tabla-promovidos" style="text-align: center;">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th><th>Casa</th>
+                                <th style="color: #0055A6;">PAN</th>
+                                <th style="color: #009639;">PRI</th>
+                                <th style="color: #FFD100;">PRD</th>
+                                <th style="color: #5CB85C;">PVEM</th>
+                                <th style="color: #E20613;">PT</th>
+                                <th style="color: #F37021;">MC</th>
+                                <th style="color: #B3282D;">MORENA</th>
+                                <th style="color: #14B5B4;">NAEM</th>
+                                <th style="color: #a7b4c9;">IND</th>
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabla-historial-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="vista-modal-agregar" style="display: none;">
+                <form id="form-encuesta" onsubmit="return false;">
+                    <input type="hidden" id="enc-id" value="">
+                    <input type="text" id="enc-casa" class="input-casa" placeholder="Casa encuestadora (Ej. Rubrum)" required>
+
+                    <div class="form-encuesta-grid">
+                        <label>PAN % <input type="number" step="0.1" id="enc-pan" value="0"></label>
+                        <label>PRI % <input type="number" step="0.1" id="enc-pri" value="0"></label>
+                        <label>MORENA % <input type="number" step="0.1" id="enc-morena" value="0"></label>
+                        <label>MC % <input type="number" step="0.1" id="enc-mc" value="0"></label>
+                        <label>PVEM % <input type="number" step="0.1" id="enc-pvem" value="0"></label>
+                        <label>PRD % <input type="number" step="0.1" id="enc-prd" value="0"></label>
+                        <label>PT % <input type="number" step="0.1" id="enc-pt" value="0"></label>
+                        <label>NAEM % <input type="number" step="0.1" id="enc-naem" value="0"></label>
+                        <label class="campo-full">Indecisos % <input type="number" step="0.1" id="enc-indecisos" value="0"></label>
+                    </div>
+
+                    <div id="total-encuesta" class="total-encuesta-pill" style="color: red;">Total: 0.0%</div>
+
+                    <div class="form-acciones">
+                        <button type="button" id="btn-cancelar-edicion" onclick="cancelarEdicion()" class="tab-btn" style="display: none;">Cancelar</button>
+                        <button type="button" id="btn-guardar-encuesta" onclick="guardarNuevaEncuesta()" class="tab-btn activo-gradiente">Procesar Encuesta</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="{% static 'js/mapa.js' %}?v=11.0"></script>
+</body>
+</html>

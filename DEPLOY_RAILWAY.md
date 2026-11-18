@@ -1,0 +1,69 @@
+# Railway: Python 3.12, Procfile y SQLite persistente
+
+Este proyecto se construye con Railpack y requirements.txt. No utiliza Dockerfile ni comandos Docker. El Procfile ejecuta migraciones, collectstatic y Gunicorn; no importa Excel ni reemplaza los datos al reiniciar.
+
+## Configurar el servicio
+
+1. Conectar este repositorio y seleccionar la rama main. La raíz del servicio es la raíz del repositorio (donde está manage.py). Usar Railpack; railway.toml fija ese constructor. No definir un Start Command alternativo: se debe detectar el comando web del Procfile. Dejar vacíos los comandos personalizados de build y pre-deploy.
+2. Crear un volumen persistente exclusivo del servicio y montarlo en /data. Usar una sola réplica y un worker, tal como está en el Procfile, para esta instalación SQLite.
+3. Configurar Variables antes del primer arranque:
+   - DATA_DIR=/data
+   - DEBUG=False
+   - SECRET_KEY: valor aleatorio secreto de al menos 50 caracteres.
+   - APP_LOGIN_USER y APP_LOGIN_PASSWORD: credenciales propias del formulario de acceso. No tienen valores predeterminados y son independientes de los usuarios del administrador Django.
+4. Generar un dominio público. Railway proporciona RAILWAY_PUBLIC_DOMAIN y Django lo agrega a hosts y orígenes CSRF. Para dominios propios, definir ALLOWED_HOSTS con hosts separados por comas, sin esquema ni puerto, y CSRF_TRUSTED_ORIGINS con orígenes HTTPS separados por comas. No usar *.
+5. Transferir los datos antes del primer arranque normal, siguiendo la siguiente sección. Después activar el despliegue automático desde main.
+
+.env.example es una plantilla: Django no carga archivos .env automáticamente. Mantener los secretos en Railway Variables o en el entorno de la terminal. Los tres archivos de versión solicitan Python 3.12. SSL se reconoce mediante X-Forwarded-Proto; las cookies de sesión y CSRF requieren HTTPS con DEBUG=False. HSTS dura una hora; no se habilitan preload ni includeSubDomains sin verificar todos los subdominios.
+
+## Transferir los datos actuales sin publicarlos
+
+Desde la raíz de este proyecto, con Python 3.12 y la aplicación local detenida para que el JSON y media no cambien durante la copia:
+
+~~~powershell
+python scripts/backup_data.py backups/initial
+~~~
+
+El script usa la API de backup de SQLite y comprueba su integridad. Copia el JSON actual de maps/escucha_data.json y media/, si existen. Se niega a sobrescribir un directorio de respaldo. Para respaldar un volumen ya existente, usar --data-dir con su ruta.
+
+Con Railway CLI actualizado, ejecutar railway login y railway link, seleccionando el proyecto, entorno y servicio correctos. En un volumen nuevo y vacío, cargar cada elemento de backups/initial en la raíz del volumen (la raíz corresponde a /data dentro del servicio):
+
+~~~powershell
+railway volume files upload ./backups/initial/db.sqlite3 /db.sqlite3
+railway volume files upload ./backups/initial/escucha_data.json /escucha_data.json
+railway volume files upload ./backups/initial/media /media
+~~~
+
+Omitir JSON o media si no existen en el respaldo. La CLI permite elegir el volumen; verificar que pertenezca a este servicio. También se puede usar el explorador de archivos del volumen. No subir el directorio backups dentro del repositorio ni sustituir una base remota existente sin respaldarla primero.
+
+Si la carga requiere un servicio en ejecución, mantenerlo temporalmente sin tráfico público con Start Command = sleep infinity, cargar los archivos, quitar ese Start Command y desplegar de nuevo para usar el Procfile. No importar Excel para reconstruir una base que ya fue transferida.
+
+Confirmar que /data contiene db.sqlite3, escucha_data.json y media/ según corresponda. En el primer arranque normal, migrate conserva los registros existentes y aplica únicamente las migraciones pendientes. Mantener el respaldo local fuera de Git.
+
+Documentación oficial de transferencia: https://docs.railway.com/cli/volume
+
+## Validar
+
+En un entorno aislado, definir SECRET_KEY, APP_LOGIN_USER, APP_LOGIN_PASSWORD y DATA_DIR apuntando a un directorio de prueba; no usar la base de trabajo para validar migraciones:
+
+~~~text
+python -m pip install -r requirements.txt
+python -m pip check
+python manage.py check
+python manage.py check --deploy
+python manage.py migrate --noinput
+python manage.py collectstatic --noinput
+python manage.py test maps.test_deployment
+~~~
+
+check --deploy puede advertir sobre HSTS includeSubDomains/preload, que requieren una decisión sobre todos los dominios antes de activarse. No ignorar otras advertencias sin investigarlas. Los tests usan HTTPS y verifican login, CSRF, hosts, estáticos y el archivo persistente.
+
+Después del despliegue real: abrir login, entrar al mapa, comprobar CSS/JS y GeoJSON, registrar una encuesta y probar las cargas. Reiniciar el servicio y confirmar que encuesta y escucha social siguen presentes. Revisar logs de migrate, collectstatic y Gunicorn. WhiteNoise sirve estáticos; media/ queda persistido para uso de la aplicación y no se expone públicamente de forma automática.
+
+## Desarrollo local
+
+Sin DATA_DIR se conservan db.sqlite3, maps/escucha_data.json y media/ en sus ubicaciones originales. Definir DEBUG=True y las dos variables APP_LOGIN_* para iniciar el servidor local. La clave temporal de desarrollo nunca se acepta con DEBUG=False.
+
+## Git
+
+Se excluyen bases, JSON mutable, media, entornos, secretos y respaldos del estado publicado. En City E se conserva el historial heredado; retirar archivos del índice no elimina sus versiones de commits antiguos. City_a y City N no forman parte de estos cambios.
