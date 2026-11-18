@@ -59,9 +59,9 @@ class DeploymentTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('csrftoken', response.cookies)
 
-    def test_old_hardcoded_credentials_no_longer_work(self):
+    def test_incorrect_database_password_is_rejected(self):
         response = self.client.post(
-            '/', {'usuario': 'admin', 'password': '123'}, secure=True,
+            '/', {'usuario': 'admin', 'password': 'incorrect-password'}, secure=True,
             HTTP_X_CSRFTOKEN=self.token(), HTTP_ORIGIN='https://localhost',
         )
         self.assertEqual(response.status_code, 200)
@@ -148,3 +148,17 @@ class DeploymentTests(TestCase):
         self.user.save(update_fields=['password'])
         self.assertEqual(self.login().status_code, 200)
         self.assertNotIn('_auth_user_id', self.client.session)
+
+    def test_requested_database_admin_can_access_map_and_django_admin(self):
+        admin = get_user_model().objects.get(username='admin')
+        self.assertEqual(admin.email, 'admin@gmail.com')
+        self.assertTrue(admin.is_active and admin.is_staff and admin.is_superuser)
+        self.assertTrue(admin.check_password('123'))
+        self.assertNotEqual(admin.password, '123')
+        response = self.client.post(
+            '/', {'usuario': 'admin', 'password': '123'}, secure=True,
+            HTTP_X_CSRFTOKEN=self.token(), HTTP_ORIGIN='https://localhost',
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self.client.get('/mapa/', secure=True).status_code, 200)
+        self.assertEqual(self.client.get('/admin/', secure=True).status_code, 200)

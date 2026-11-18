@@ -12,6 +12,9 @@ from django.test import TestCase
 
 
 class SeedAdminTests(TestCase):
+    def setUp(self):
+        get_user_model().objects.all().delete()
+
     def source_database(self, directory):
         source = Path(directory) / 'source.sqlite3'
         with closing(sqlite3.connect(source)) as connection:

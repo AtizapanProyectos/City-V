@@ -78,6 +78,10 @@ Si el volumen ya contiene una base vacía generada en un despliegue anterior, el
 
 ## Administrador guardado en SQLite
 
-El formulario del mapa utiliza authenticate/login/logout de Django y comparte los usuarios con /admin/. El Procfile ejecuta seed_admin después de migrate: si el volumen no tiene ningún superusuario activo, importa el administrador inicial y su hash desde el db.sqlite3 del repositorio. Si ya existe un superusuario activo, conserva sus credenciales. Tampoco reemplaza un usuario existente que tenga el mismo nombre. No se publica ninguna contraseña en texto plano.
+El formulario del mapa utiliza authenticate/login/logout de Django y comparte los usuarios con /admin/. El Procfile ejecuta seed_admin después de migrate: si el volumen no tiene ningún superusuario activo, importa el administrador inicial y su hash desde el db.sqlite3 del repositorio. Si ya existe un superusuario activo, conserva sus credenciales. Tampoco reemplaza un usuario existente que tenga el mismo nombre. Las contraseñas de SQLite se almacenan como hash.
 
 Para crear otro administrador, ejecutar python manage.py createsuperuser sobre la base de destino. Para cambiar su contraseña, usar python manage.py changepassword admin en ese servicio. Estas operaciones actúan sobre DATA_DIR/db.sqlite3. Una contraseña modificada en producción no se restablece en futuros despliegues.
+
+## Actualización solicitada de la cuenta admin
+
+La migración configure_admin_access configura una sola vez el usuario admin, correo admin@gmail.com y permisos de usuario activo, staff y superusuario, con la contraseña inicial solicitada por el propietario. Así también corrige los permisos y el acceso en un volumen existente. Las siguientes ejecuciones de migrate no vuelven a restablecer esa contraseña; los cambios posteriores realizados mediante changepassword se conservan.
