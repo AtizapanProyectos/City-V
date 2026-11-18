@@ -20,8 +20,8 @@ def env_list(name):
     return [value.strip() for value in os.environ.get(name, '').split(',') if value.strip()]
 
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1'] + env_list('ALLOWED_HOSTS')
-CSRF_TRUSTED_ORIGINS = env_list('CSRF_TRUSTED_ORIGINS')
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'city-v-production.up.railway.app'] + env_list('ALLOWED_HOSTS')
+CSRF_TRUSTED_ORIGINS = ['https://city-v-production.up.railway.app'] + env_list('CSRF_TRUSTED_ORIGINS')
 railway_domain = os.environ.get('RAILWAY_PUBLIC_DOMAIN', '').strip()
 if railway_domain:
     ALLOWED_HOSTS.append(railway_domain)
