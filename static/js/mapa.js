@@ -3,7 +3,7 @@ function csrfFetch(url, options = {}) {
     const tokenCookie = document.cookie.split('; ').find(cookie => cookie.startsWith('csrftoken='));
     const headers = new Headers(options.headers || {});
     if (tokenCookie) headers.set('X-CSRFToken', decodeURIComponent(tokenCookie.slice('csrftoken='.length)));
-    return fetch(url, { ...options, headers, mode: 'same-origin', credentials: 'same-origin' });
+    return dashboardFetch(url, { ...options, headers, mode: 'same-origin', credentials: 'same-origin' });
 }
 
 const colorBorde = "#1b5e20";
@@ -16,6 +16,9 @@ const coloresPartidos = {
 const colorOro = '#d9ab16';
 
 let map;
+let seccionRequestVersion = 0;
+let promovidosRequestVersion = 0;
+let promovidosPagina = 1;
 let capasSecciones = {}, capaGlobalAtizapan = null, capaResaltadaActual = null; 
 let chartInstancia = null; 
 let chartGlobalInstancia = null; 
@@ -212,36 +215,24 @@ function ordenarPorVotos(partidos, votos) {
     };
 }
 
+const contadorFrames = new WeakMap();
 function animarContador(el, valorFinal, opciones = {}) {
     if (!el) return;
-    const sufijo = opciones.sufijo || '';
-    const duracion = opciones.duracion || 900;
-    const valorInicial = parseFloat(el.dataset.valorActual || '0');
-    const destino = Number(valorFinal) || 0;
-    
-    if (valorInicial === destino) { 
-        el.innerText = destino.toLocaleString() + sufijo; 
-        el.dataset.valorActual = destino; 
-        return; 
+    cancelAnimationFrame(contadorFrames.get(el));
+    const destino = Number(valorFinal) || 0, sufijo = opciones.sufijo || '';
+    const inicial = Number(el.dataset.valorActual || 0);
+    const finish = () => { el.textContent = destino.toLocaleString() + sufijo; el.dataset.valorActual = destino; contadorFrames.delete(el); };
+    if (mobileDashboard.isMobile() || matchMedia('(prefers-reduced-motion: reduce)').matches || inicial === destino) { finish(); return; }
+    const started = performance.now();
+    function step(now) {
+        const progress = Math.min(1, (now - started) / 250);
+        const value = inicial + (destino - inicial) * (1 - Math.pow(1 - progress, 3));
+        el.dataset.valorActual = value;
+        el.textContent = Math.round(value).toLocaleString() + sufijo;
+        if (progress < 1) contadorFrames.set(el, requestAnimationFrame(step));
+        else finish();
     }
-    
-    const inicioTiempo = performance.now();
-    
-    function paso(ahora) {
-        const progreso = Math.min((ahora - inicioTiempo) / duracion, 1);
-        const facilitado = 1 - Math.pow(1 - progreso, 3);
-        const valorActual = valorInicial + (destino - valorInicial) * facilitado;
-        
-        el.innerText = Math.round(valorActual).toLocaleString() + sufijo;
-        
-        if (progreso < 1) { 
-            requestAnimationFrame(paso); 
-        } else { 
-            el.innerText = destino.toLocaleString() + sufijo; 
-            el.dataset.valorActual = destino; 
-        }
-    }
-    requestAnimationFrame(paso);
+    contadorFrames.set(el, requestAnimationFrame(step));
 }
 
 function destellar(el) {
@@ -302,7 +293,13 @@ function obtenerMapaGanadoresActivo() {
     return fuente;
 }
 
+let mapaRepaintPending = false;
 function colorearMapaGlobal() {
+    if (mapaRepaintPending) return;
+    mapaRepaintPending = true;
+    requestAnimationFrame(() => { mapaRepaintPending = false; colorearMapaGlobalAhora(); });
+}
+function colorearMapaGlobalAhora() {
     if (!capaGlobalAtizapan || !isGeoJsonLoaded || !isTotalesLoaded) return;
     
     const mapaActivo = obtenerMapaGanadoresActivo();
@@ -323,11 +320,11 @@ function colorearMapaGlobal() {
 
             if (filtroIntensidadActivo !== null && opacidad !== filtroIntensidadActivo) {
                 if (capaResaltadaActual !== layer) {
-                    layer.setStyle({ fillColor: '#e2e8f0', fillOpacity: 0.28, weight: 1.2, color: '#64748b' });
+                    applyLayerStyle(layer, { fillColor: '#e2e8f0', fillOpacity: 0.28, weight: 1.2, color: '#64748b' });
                 }
             } else {
                 if (capaResaltadaActual !== layer) {
-                    layer.setStyle({ fillColor: baseColor, fillOpacity: opacidad, weight: 1.5, color: '#1b5e20' });
+                    applyLayerStyle(layer, { fillColor: baseColor, fillOpacity: opacidad, weight: 1.5, color: '#1b5e20' });
                 }
             }
         } else {
@@ -336,11 +333,11 @@ function colorearMapaGlobal() {
 
             if (filtroIntensidadActivo !== null) {
                 if (capaResaltadaActual !== layer) {
-                    layer.setStyle({ fillColor: '#e2e8f0', fillOpacity: 0.28, weight: 1.2, color: '#64748b' });
+                    applyLayerStyle(layer, { fillColor: '#e2e8f0', fillOpacity: 0.28, weight: 1.2, color: '#64748b' });
                 }
             } else {
                 if (capaResaltadaActual !== layer) {
-                    layer.setStyle({ fillColor: colorFondo, fillOpacity: 0.45, weight: 1.5, color: '#1b5e20' });
+                    applyLayerStyle(layer, { fillColor: colorFondo, fillOpacity: 0.45, weight: 1.5, color: '#1b5e20' });
                 }
             }
         }
@@ -353,7 +350,7 @@ document.addEventListener('DOMContentLoaded', function() {
     configurarEventosGlobales();
     inicializarFiltrosLeyenda(); 
     
-    fetch('/api/escucha-social/')
+    dashboardFetch('/api/escucha-social/')
         .then(r => r.json())
         .then(res => {
             if(res.status === 'ok' && res.data && res.data.length === 3) {
@@ -410,31 +407,29 @@ function mostrarToast(mensaje = "Proceso completado exitosamente") {
 
 function dispararRecalculoProyeccion() {
     document.getElementById('loading-overlay').style.display = 'flex';
-    
-    Promise.all([
-        fetch(`/api/totales/?factor_escucha=${factorSentimientoGlobal}`).then(r => r.json()), 
-        seccionActivaFiltro ? fetch(`/api/seccion/${seccionActivaFiltro}/?factor_escucha=${factorSentimientoGlobal}`).then(r => r.json()) : Promise.resolve(null)
+    const selectedSection = seccionActivaFiltro;
+    const version = seccionRequestVersion;
+    return Promise.all([
+        dashboardFetch(`/api/totales/?factor_escucha=${factorSentimientoGlobal}`).then(r => r.json()),
+        seccionActivaFiltro ? dashboardFetch(`/api/seccion/${seccionActivaFiltro}/?factor_escucha=${factorSentimientoGlobal}`).then(r => r.json()) : Promise.resolve(null)
     ]).then(([totalesData, seccionData]) => {
         if(totalesData) {
             totalesGlobales = totalesData;
+            isTotalesLoaded = true;
             ganadoresHistoricosMap = totalesData.ganadores_historicos || {};
             ganadoresProyectadosMap = totalesData.ganadores_proyectados || {};
             renderizarPestanaGlobal();
             colorearMapaGlobal();
         }
-        if (seccionData) { 
+        if (seccionData && version === seccionRequestVersion && selectedSection === seccionActivaFiltro) {
             datosGlobales = seccionData; 
             renderizarPestana(); 
         }
         
-        setTimeout(() => { 
-            document.getElementById('loading-overlay').style.display = 'none'; 
-            mostrarToast("Proyecciones actualizadas"); 
-        }, 900);
+        mostrarToast("Proyecciones actualizadas");
     }).catch(err => {
-        console.error(err);
-        document.getElementById('loading-overlay').style.display = 'none';
-    });
+        dashboardReadError(err, dispararRecalculoProyeccion);
+    }).finally(() => { document.getElementById('loading-overlay').style.display = 'none'; });
 }
 
 function crearGradienteInstitucionalVertical(ctx) {
@@ -454,38 +449,19 @@ function crearGradienteInstitucionalHorizontal(ctx) {
 }
 
 function inicializarMapa() {
-    map = L.map('mapa-atizapan', { zoomControl: true, preferCanvas: true, maxBoundsViscosity: 1.0 }).setView([19.5548, -99.2443], 13);
+    map = L.map('mapa-atizapan', { zoomControl: true, preferCanvas: true, trackResize: false, maxBoundsViscosity: 1.0 }).setView([19.5548, -99.2443], 13);
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16, attribution: 'Tiles &copy; Esri' }).addTo(map);
 
-    map.createPane('paneFondo'); 
-    map.getPane('paneFondo').style.zIndex = 400;
-    
     map.createPane('paneSecciones'); 
     map.getPane('paneSecciones').style.zIndex = 410;
     
-    var rendererFondo = L.canvas({ pane: 'paneFondo' }); 
     var rendererSecciones = L.canvas({ pane: 'paneSecciones' });
 
-    fetch('/static/data/contorno_municipio.geojson')
+    document.getElementById('btn-buscar').disabled = true;
+    function cargarGeografia() {
+    return dashboardFetch('/static/data/secciones_atizapan.geojson')
         .then(res => res.json())
         .then(data => {
-            L.geoJSON(data, { 
-                renderer: rendererFondo, 
-                style: { color: '#1b5e20', weight: 3.5, fillColor: colorFondo, fillOpacity: 0.12 }, 
-                interactive: false 
-            }).addTo(map);
-        })
-        .catch(e => console.log("Usando contorno directo"));
-
-    fetch('/static/data/secciones_atizapan.geojson')
-        .then(res => res.json())
-        .then(data => {
-            L.geoJSON(data, {
-                renderer: rendererFondo,
-                style: { color: '#1b5e20', weight: 2.2, opacity: 0.85, fillColor: '#f4f7f4', fillOpacity: 0.25 },
-                interactive: false
-            }).addTo(map);
-
             capaGlobalAtizapan = L.geoJSON(data, {
                 renderer: rendererSecciones, 
                 style: { color: '#1b5e20', weight: 1.5, fillColor: colorFondo, fillOpacity: 0.45 },
@@ -502,7 +478,7 @@ function inicializarMapa() {
                     
                     layer.on('mouseover', function () { 
                         if (capaResaltadaActual !== layer) {
-                            this.setStyle({ fillColor: colorHover, fillOpacity: 0.75, weight: 2.5, color: '#1b5e20' }); 
+                            applyLayerStyle(this, { fillColor: colorHover, fillOpacity: 0.75, weight: 2.5, color: '#1b5e20' });
                         }
                     });
                     
@@ -512,9 +488,9 @@ function inicializarMapa() {
                             let opacity = this.options.originalFillOpacity || (baseColor === colorFondo ? 0.45 : 0.55);
                             
                             if (filtroIntensidadActivo !== null && opacity !== filtroIntensidadActivo) {
-                                this.setStyle({ fillColor: '#e2e8f0', fillOpacity: 0.28, weight: 1.2, color: '#64748b' });
+                                applyLayerStyle(this, { fillColor: '#e2e8f0', fillOpacity: 0.28, weight: 1.2, color: '#64748b' });
                             } else {
-                                this.setStyle({ fillColor: baseColor, fillOpacity: opacity, weight: 1.5, color: '#1b5e20' }); 
+                                applyLayerStyle(this, { fillColor: baseColor, fillOpacity: opacity, weight: 1.5, color: '#1b5e20' });
                             }
                         }
                     });
@@ -524,16 +500,20 @@ function inicializarMapa() {
             }).addTo(map);
             
             var limites = capaGlobalAtizapan.getBounds(); 
-            map.fitBounds(limites);
-            setTimeout(() => { map.setZoom(13); map.setMinZoom(12); map.setMaxBounds(limites.pad(0.3)); }, 100);
+            setDashboardMunicipalBounds(limites);
+            moveDashboardMap(limites, { padding: [12, 12] });
             
             isGeoJsonLoaded = true;
+            document.getElementById('btn-buscar').disabled = false;
             colorearMapaGlobal(); 
-        });
+        }).catch(error => dashboardReadError(error, cargarGeografia));
+    }
+    cargarGeografia();
 
     document.getElementById('btn-buscar').addEventListener('click', () => { 
         const s = document.getElementById('input-buscador').value.trim(); 
-        if (capasSecciones[s]) abrirDashboardElectoral(s, capasSecciones[s]); 
+        if (capasSecciones[s]) abrirDashboardElectoral(s, capasSecciones[s]);
+        else dashboardNotice("No se encontró esa sección en el municipio.");
     });
     
     document.getElementById('input-buscador').addEventListener('keypress', (e) => { 
@@ -541,7 +521,13 @@ function inicializarMapa() {
     });
     
     document.getElementById('btn-restaurar-mapa').addEventListener('click', function() {
-        seccionActivaFiltro = null; 
+        seccionActivaFiltro = null;
+        seccionRequestVersion += 1;
+        promovidosPagina = 1;
+        promovidosRequestVersion += 1;
+        dashboardControllers.get('promovidos')?.abort();
+        dashboardControllers.get('section')?.abort();
+        document.body.removeAttribute('data-has-section');
         document.getElementById('label-seccion-promovidos').innerText = "Global"; 
         document.getElementById('modal-label-seccion').innerText = "(Todas)";
         cargarTablaPromovidos(); 
@@ -561,9 +547,9 @@ function inicializarMapa() {
             let opacity = capaResaltadaActual.options.originalFillOpacity || (baseColor === colorFondo ? 0.45 : 0.55);
             
             if (filtroIntensidadActivo !== null && opacity !== filtroIntensidadActivo) {
-                 capaResaltadaActual.setStyle({ fillColor: '#ffffff', fillOpacity: 0.2, weight: 1, color: '#cbd5e1' });
+                 applyLayerStyle(capaResaltadaActual, { fillColor: '#ffffff', fillOpacity: 0.2, weight: 1, color: '#cbd5e1' });
             } else {
-                 capaResaltadaActual.setStyle({ fillColor: baseColor, fillOpacity: opacity, weight: 1, color: '#1b5e20' }); 
+                 applyLayerStyle(capaResaltadaActual, { fillColor: baseColor, fillOpacity: opacity, weight: 1, color: '#1b5e20' });
             }
             capaResaltadaActual = null; 
         }
@@ -573,17 +559,18 @@ function inicializarMapa() {
         
         colorearMapaGlobal();
         
-        setTimeout(() => { 
-            map.invalidateSize(); 
-            if (capaGlobalAtizapan) { 
-                map.flyToBounds(capaGlobalAtizapan.getBounds(), { duration: 1.2 }); 
-                setTimeout(() => { map.setZoom(13); }, 1200); 
-            } 
-        }, 500);
+        if (capaGlobalAtizapan) moveDashboardMap(capaGlobalAtizapan.getBounds(), { padding: [12, 12] });
     });
 }
 
 function abrirDashboardElectoral(seccion, capa) {
+    const requestVersion = ++seccionRequestVersion;
+    promovidosPagina = 1;
+    promovidosRequestVersion += 1;
+    dashboardControllers.get('promovidos')?.abort();
+    seccionActivaFiltro = seccion;
+    document.body.dataset.hasSection = 'true';
+    mobileDashboard.select('resultados');
     if (capaResaltadaActual && capaGlobalAtizapan) {
         capaResaltadaActual.unbindTooltip();
         capaResaltadaActual.bindTooltip("Sec: " + capaResaltadaActual.seccionID, { 
@@ -594,13 +581,13 @@ function abrirDashboardElectoral(seccion, capa) {
         let opacity = capaResaltadaActual.options.originalFillOpacity || (baseColor === colorFondo ? 0.45 : 0.55);
         
         if (filtroIntensidadActivo !== null && opacity !== filtroIntensidadActivo) {
-             capaResaltadaActual.setStyle({ fillColor: '#ffffff', fillOpacity: 0.2, weight: 1, color: '#cbd5e1' });
+             applyLayerStyle(capaResaltadaActual, { fillColor: '#ffffff', fillOpacity: 0.2, weight: 1, color: '#cbd5e1' });
         } else {
-             capaResaltadaActual.setStyle({ fillColor: baseColor, fillOpacity: opacity, weight: 1, color: '#1b5e20' });
+             applyLayerStyle(capaResaltadaActual, { fillColor: baseColor, fillOpacity: opacity, weight: 1, color: '#1b5e20' });
         }
     }
     
-    capa.setStyle({ fillColor: colorHover, fillOpacity: 0.9, color: '#144517', weight: 3 });
+    applyLayerStyle(capa, { fillColor: colorHover, fillOpacity: 0.9, color: '#144517', weight: 3 });
     capa.unbindTooltip(); 
     capa.bindTooltip("Sec: " + seccion, { permanent: true, direction: 'center', className: 'label-seccion', interactive: false }).openTooltip();
     capaResaltadaActual = capa;
@@ -611,14 +598,12 @@ function abrirDashboardElectoral(seccion, capa) {
     document.getElementById('btn-restaurar-mapa').style.display = 'block'; 
     document.getElementById('ui-seccion-id').innerText = seccion;
 
-    setTimeout(() => { 
-        map.invalidateSize({ animate: true }); 
-        map.flyToBounds(capa.getBounds(), { maxZoom: 16, duration: 0.8, padding: [10, 10] }); 
-    }, 400);
+    moveDashboardMap(capa.getBounds(), { maxZoom: 16, padding: [10, 10] });
 
-    fetch(`/api/seccion/${seccion}/?factor_escucha=${factorSentimientoGlobal}`)
+    dashboardFetch(`/api/seccion/${seccion}/?factor_escucha=${factorSentimientoGlobal}`, { requestKey: 'section' })
         .then(res => res.json())
         .then(data => { 
+            if (requestVersion !== seccionRequestVersion) return;
             datosGlobales = data; 
             modoProyeccion = false; 
             
@@ -644,7 +629,8 @@ function abrirDashboardElectoral(seccion, capa) {
             }
         })
         .catch(err => {
-            console.error("Error al cargar datos:", err);
+            if (requestVersion !== seccionRequestVersion || err.name === "AbortError") return;
+            dashboardReadError(err, () => abrirDashboardElectoral(seccion, capa));
             datosGlobales = { error: true };
             cambiarPestana('ayuntamiento');
         });
@@ -680,7 +666,7 @@ function renderizarPestana() {
         const elGanador = document.getElementById('stat-ganador');
         if (elGanador) elGanador.innerHTML = `<span style="color: #64748b;">Sin datos en la base de datos</span>`;
         
-        if (chartInstancia) { chartInstancia.destroy(); chartInstancia = null; }
+        discardDashboardChart('grafica-principal'); chartInstancia = null;
         return;
     }
 
@@ -733,7 +719,6 @@ function renderizarPestana() {
     }
     destellar(elGanador);
 
-    if (chartInstancia) chartInstancia.destroy();
     
     const ctx = document.getElementById('grafica-principal').getContext('2d');
     const partidosBase = ['PAN', 'PRI', 'PRD', 'PVEM', 'PT', 'MC', 'MORENA', 'NAEM'];
@@ -752,7 +737,7 @@ function renderizarPestana() {
     const maxVoto = votosOrd.length > 0 ? Math.max(...votosOrd.map(Number)) : 0;
     const maxEscalaY = Math.max(maxVoto, metaValorAbsoluto) * 1.22;
 
-    chartInstancia = new Chart(ctx, { 
+    chartInstancia = renderDashboardChart(ctx, {
         type: 'bar', 
         data: { 
             labels: partidosOrd, 
@@ -791,7 +776,7 @@ function renderizarPestana() {
 }
 
 function cargarDatosTotales() { 
-    fetch(`/api/totales/?factor_escucha=${factorSentimientoGlobal}`)
+    dashboardFetch(`/api/totales/?factor_escucha=${factorSentimientoGlobal}`)
         .then(res => res.json())
         .then(data => { 
             if(data && !data.error) { 
@@ -805,7 +790,7 @@ function cargarDatosTotales() {
                 } 
                 cambiarPestanaGlobal('ayuntamiento'); 
             }
-        }); 
+        }).catch(error => dashboardReadError(error, cargarDatosTotales));
 }
 
 window.cambiarPestanaGlobal = function(tipo) {
@@ -874,7 +859,6 @@ function renderizarPestanaGlobal() {
     }
     destellar(elGanadorGlobal);
 
-    if (chartGlobalInstancia) chartGlobalInstancia.destroy();
     
     const ctxGlobal = document.getElementById('grafica-global').getContext('2d');
     const partidosBase = ['PAN', 'PRI', 'PRD', 'PVEM', 'PT', 'MC', 'MORENA', 'NAEM'];
@@ -891,7 +875,7 @@ function renderizarPestanaGlobal() {
     const maxVotoG = votosOrd.length > 0 ? Math.max(...votosOrd.map(Number)) : 0;
     const maxEscalaX = Math.max(maxVotoG, metaValorAbsolutoG) * 1.18;
 
-    chartGlobalInstancia = new Chart(ctxGlobal, { 
+    chartGlobalInstancia = renderDashboardChart(ctxGlobal, {
         type: 'bar', 
         data: { 
             labels: partidosOrd, 
@@ -929,38 +913,59 @@ function renderizarPestanaGlobal() {
     requestAnimationFrame(() => { if (chartGlobalInstancia) chartGlobalInstancia.resize(); });
 }
 
-function cargarTablaPromovidos() {
-    let url = '/api/promovidos/'; 
-    if (seccionActivaFiltro) url += `?seccion=${seccionActivaFiltro}`;
-    
-    fetch(url).then(res => res.json()).then(data => {
-        const lista = Array.isArray(data) ? data : [];
-        const tbodyMini = document.getElementById('tabla-promovidos-body');
-        const tbodyModal = document.getElementById('modal-tabla-body');
-        const contadorMini = document.getElementById('contador-promovidos-mini');
-        
-        if (contadorMini) contadorMini.innerText = lista.length;
-
-        if(tbodyMini && tbodyModal) {
-            tbodyMini.innerHTML = ''; 
-            tbodyModal.innerHTML = '';
-            
-            if (lista.length === 0) {
-                tbodyMini.innerHTML = `<tr><td colspan="3" style="text-align:center; padding: 18px 10px; color: #64748b;">Sin promovidos registrados en esta vista. Usa <b>+ Capturar</b> o <b>Cargar Excel</b>.</td></tr>`;
-                tbodyModal.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 28px 12px; color: #64748b;">El padrón está limpio. Agrega promovidos manualmente en "+ Capturar Promovido" o sube tu archivo en "Cargar Excel".</td></tr>`; 
-                return;
+function cargarTablaPromovidos(page = 1, force = false) {
+    const modalVisible = document.getElementById('modal-promovidos').classList.contains('active');
+    const visible = mobileDashboard.isMobile()
+        ? !document.getElementById('mobile-promovidos').hidden
+        : document.getElementById('dashboard-layout').classList.contains('modo-cuadrante');
+    if (!force && !visible && !modalVisible) return Promise.resolve();
+    promovidosPagina = page;
+    const selectedSection = seccionActivaFiltro;
+    const version = ++promovidosRequestVersion;
+    document.getElementById('contador-promovidos-mini').textContent = '…';
+    for (const id of ['tabla-promovidos-body', 'modal-tabla-body']) {
+        const row = document.createElement('tr'), cell = document.createElement('td');
+        cell.colSpan = id === 'modal-tabla-body' ? 7 : 3; cell.textContent = 'Cargando registros…';
+        row.appendChild(cell); document.getElementById(id).replaceChildren(row);
+    }
+    const params = new URLSearchParams({ page: String(page), page_size: '50' });
+    if (selectedSection) params.set('seccion', selectedSection);
+    return dashboardFetch('/api/promovidos/?' + params, { requestKey: 'promovidos' }).then(res => res.json()).then(data => {
+        if (version !== promovidosRequestVersion || selectedSection !== seccionActivaFiltro) return;
+        const lista = data.results || [];
+        promovidosPagina = data.page;
+        document.getElementById('contador-promovidos-mini').textContent = data.count;
+        for (const [id, full] of [['tabla-promovidos-body', false], ['modal-tabla-body', true]]) {
+            const tbody = document.getElementById(id);
+            const fragment = document.createDocumentFragment();
+            if (!lista.length) {
+                const row = document.createElement('tr'), cell = document.createElement('td');
+                cell.colSpan = full ? 7 : 3; cell.textContent = 'Sin promovidos en esta vista. Captura uno o carga un archivo Excel.';
+                row.appendChild(cell); fragment.appendChild(row);
             }
-            
-            lista.forEach(p => {
-                const colorEstatus = p.estatus === 'Confirmado' ? '#2b9348' : (p.estatus === 'Inalcanzable' ? '#c93b3b' : '#38a838');
-                tbodyMini.innerHTML += `<tr><td><b>${p.nombre}</b></td><td>${p.seccion || '-'}</td><td style="color: ${colorEstatus}; font-weight:bold;">${p.estatus || '-'}</td></tr>`;
-                tbodyModal.innerHTML += `<tr><td><b>${p.nombre}</b></td><td>${p.telefono || '-'}</td><td>${p.direccion || '-'}</td><td>${p.seccion || '-'}</td><td>${p.medio || '-'}</td><td>${p.fecha || '-'}</td><td style="color: ${colorEstatus}; font-weight:bold;">${p.estatus || '-'}</td></tr>`;
-            });
+            for (const person of lista) {
+                const row = document.createElement('tr');
+                const values = full ? [person.nombre, person.telefono, person.direccion, person.seccion, person.medio, person.fecha, person.estatus] : [person.nombre, person.seccion, person.estatus];
+                values.forEach(value => { const cell = document.createElement('td'); cell.textContent = value || '-'; row.appendChild(cell); });
+                fragment.appendChild(row);
+            }
+            tbody.replaceChildren(fragment);
         }
-    });
+        document.querySelectorAll('.promovidos-pager').forEach(pager => {
+            pager.replaceChildren();
+            const previous = document.createElement('button'), next = document.createElement('button'), label = document.createElement('span');
+            previous.type = next.type = 'button'; previous.textContent = 'Anterior'; next.textContent = 'Siguiente';
+            previous.disabled = data.page <= 1; next.disabled = data.page >= data.pages;
+            previous.onclick = () => cargarTablaPromovidos(data.page - 1, true);
+            next.onclick = () => cargarTablaPromovidos(data.page + 1, true);
+            label.textContent = 'Página ' + data.page + ' de ' + data.pages + ' · ' + data.count + ' registros';
+            pager.append(previous, label, next);
+        });
+    }).catch(error => dashboardReadError(error, () => cargarTablaPromovidos(page, true)));
 }
 
 window.cambiarVistaMiniPromovidos = function(vista) {
+    document.querySelector('#cuadrante-inferior-izquierdo .promovidos-pager').hidden = vista === 'excel';
     const btnLista = document.getElementById('tab-prom-mini-lista'); 
     const btnExcel = document.getElementById('tab-prom-mini-excel'); 
     const divLista = document.getElementById('vista-promovidos-lista'); 
@@ -980,6 +985,7 @@ window.cambiarVistaMiniPromovidos = function(vista) {
 };
 
 window.cambiarTabModalPromovidos = function(tab) {
+    document.querySelector('#modal-promovidos .promovidos-pager').hidden = tab !== 'lista';
     const tabs = ['lista', 'capturar', 'excel'];
     tabs.forEach(t => {
         const btn = document.getElementById(`tab-modal-prom-${t}`); 
@@ -1003,7 +1009,8 @@ window.cambiarTabModalPromovidos = function(tab) {
 
 window.abrirModalPromovidosTab = function(tab) { 
     const modal = document.getElementById('modal-promovidos'); 
-    if (modal) modal.classList.add('active'); 
+    if (modal) modal.classList.add('active');
+    cargarTablaPromovidos(promovidosPagina, true);
     cambiarTabModalPromovidos(tab || 'lista'); 
 };
 
@@ -1043,7 +1050,7 @@ window.guardarNuevoPromovido = function(e) {
         .catch(err => { 
             if (btn) btn.disabled = false; 
             document.getElementById('loading-overlay').style.display = 'none'; 
-            console.error(err); 
+            dashboardReadError(err);
             alert('Error de conexión al guardar promovido.'); 
         });
 };
@@ -1066,13 +1073,13 @@ window.reiniciarPromovidos = function() {
         })
         .catch(err => { 
             document.getElementById('loading-overlay').style.display = 'none'; 
-            console.error(err); 
+            dashboardReadError(err);
         });
 };
 
 function configurarEventosGlobales() {
     const modal = document.getElementById('modal-promovidos');
-    document.getElementById('btn-vista-completa').addEventListener('click', () => modal.classList.add('active'));
+    document.getElementById('btn-vista-completa').addEventListener('click', () => { modal.classList.add('active'); cargarTablaPromovidos(promovidosPagina, true); });
     document.getElementById('close-modal').addEventListener('click', () => modal.classList.remove('active'));
     
     const inputGlobalProm = document.getElementById('file-promovidos-global');
@@ -1104,7 +1111,8 @@ function subirArchivoPromovidos(file) {
                 cambiarTabModalPromovidos('lista'); 
                 cargarTablaPromovidos(); 
                 dispararRecalculoProyeccion(); 
-                mostrarToast("Padrón cargado correctamente"); 
+                mostrarToast(data.mensaje || "Padrón cargado correctamente");
+                if (data.rechazados || data.omitidos) dashboardNotice(data.mensaje + " " + (data.errores || []).map(item => "Fila " + item.fila + ": " + item.error).join(" · "));
             } else { 
                 document.getElementById('loading-overlay').style.display = 'none'; 
                 alert(`Error: ${data.error}`); 
@@ -1112,7 +1120,7 @@ function subirArchivoPromovidos(file) {
         })
         .catch(err => { 
             document.getElementById('loading-overlay').style.display = 'none'; 
-            console.error(err); 
+            dashboardReadError(err);
         });
 }
 
@@ -1150,7 +1158,7 @@ window.procesarArchivosEscucha = function(e) {
         })
         .catch(err => { 
             document.getElementById('loading-overlay').style.display = 'none'; 
-            console.error(err); 
+            dashboardReadError(err);
         });
 };
 
@@ -1280,9 +1288,8 @@ function renderizarVistaDual() {
     });
 
     const initDona = (canvasId, chartObj, datos) => {
-        if (chartObj) chartObj.destroy(); 
         const ctx = document.getElementById(canvasId).getContext('2d');
-        return new Chart(ctx, { 
+        return renderDashboardChart(ctx, {
             type: 'doughnut', 
             data: { 
                 labels: ['Positivos', 'Negativos', 'Neutras'], 
@@ -1323,7 +1330,6 @@ function renderizarVistaComparativa(metrica) {
     animarContador(document.getElementById('ui-cand3-val'), v3); 
     document.getElementById('ui-cand3-pct').innerText = `(${p3}%)`;
     
-    if (chartEscuchaComp) chartEscuchaComp.destroy();
     const ctx = document.getElementById('chart-escucha-comp').getContext('2d');
     
     const grad1 = ctx.createLinearGradient(0, 0, 300, 0); 
@@ -1348,7 +1354,7 @@ function renderizarVistaComparativa(metrica) {
     if(v2 === maxValor && maxValor > 0) lideres.push(c2.candidato);
     if(v3 === maxValor && maxValor > 0) lideres.push(c3.candidato);
 
-    chartEscuchaComp = new Chart(ctx, {
+    chartEscuchaComp = renderDashboardChart(ctx, {
         type: 'bar',
         data: {
             labels: [limpiarNombre(c1.candidato), limpiarNombre(c2.candidato), limpiarNombre(c3.candidato)],
@@ -1416,7 +1422,7 @@ function cargarHistorialEncuestas() {
     const tbody = document.getElementById('tabla-historial-body'); 
     tbody.innerHTML = `<tr><td colspan="12" style="text-align:center; padding:18px; color:#64748b;">Cargando historial…</td></tr>`;
     
-    fetch('/api/historial-encuestas/')
+    dashboardFetch('/api/historial-encuestas/')
         .then(res => { 
             if (!res.ok) throw new Error('HTTP ' + res.status); 
             return res.json(); 
@@ -1448,7 +1454,7 @@ function cargarHistorialEncuestas() {
             });
         })
         .catch(err => { 
-            console.error(err); 
+            dashboardReadError(err);
             tbody.innerHTML = `<tr><td colspan="12" style="text-align:center; padding:18px; color:#b8252d;">No se pudo cargar el historial. Revisa la consola (F12) para más detalle.</td></tr>`; 
         });
 }
@@ -1476,7 +1482,7 @@ window.eliminarEncuesta = function(id) {
         })
         .catch(err => { 
             document.getElementById('loading-overlay').style.display = 'none'; 
-            console.error(err); 
+            dashboardReadError(err);
             alert('Error de conexión al eliminar la encuesta.'); 
         });
 }
@@ -1560,7 +1566,7 @@ window.guardarNuevaEncuesta = function() {
         .catch(err => { 
             if (btnGuardar) btnGuardar.disabled = false; 
             document.getElementById('loading-overlay').style.display = 'none'; 
-            console.error(err); 
+            dashboardReadError(err);
             alert('Error de conexión al guardar la encuesta.'); 
         });
 };
@@ -1592,13 +1598,13 @@ function reiniciarEncuestas() {
         })
         .catch(err => { 
             document.getElementById('loading-overlay').style.display = 'none'; 
-            console.error(err); 
+            dashboardReadError(err);
             alert('Error de conexión al reiniciar el historial.'); 
         });
 }
 
 function cargarGraficaPromedio() {
-    fetch('/api/promedio-encuestas/')
+    dashboardFetch('/api/promedio-encuestas/')
         .then(res => res.json())
         .then(data => {
             const partidosBase = ['PAN', 'PRI', 'PRD', 'PVEM', 'PT', 'MC', 'MORENA', 'NAEM', 'Indecisos'];
@@ -1609,7 +1615,7 @@ function cargarGraficaPromedio() {
             const vacioEl = document.getElementById('promedio-vacio');
             
             if (sumaTotal === 0) { 
-                if (chartEncuestas) { chartEncuestas.destroy(); chartEncuestas = null; } 
+                discardDashboardChart('grafica-encuestas'); chartEncuestas = null;
                 if (canvasWrap) canvasWrap.style.display = 'none'; 
                 if (vacioEl) vacioEl.style.display = 'flex'; 
                 return; 
@@ -1618,7 +1624,7 @@ function cargarGraficaPromedio() {
             if (canvasWrap) canvasWrap.style.display = 'block'; 
             if (vacioEl) vacioEl.style.display = 'none';
 
-            if(chartEncuestas) chartEncuestas.destroy();
+
             
             const ctx = document.getElementById('grafica-encuestas').getContext('2d');
             const { partidosOrd, votosOrd } = ordenarPorVotos(partidosBase, valoresBase);
@@ -1632,7 +1638,7 @@ function cargarGraficaPromedio() {
             const bordeColor = partidosOrd.map((p, i) => (votosOrd[i] === maxVoto && maxVoto > 0 && p !== 'Indecisos') ? colorOro : 'transparent');
             const bordeAncho = partidosOrd.map((p, i) => (votosOrd[i] === maxVoto && maxVoto > 0 && p !== 'Indecisos') ? 3 : 0);
 
-            chartEncuestas = new Chart(ctx, { 
+            chartEncuestas = renderDashboardChart(ctx, {
                 type: 'bar', 
                 data: { 
                     labels: partidosOrd, 

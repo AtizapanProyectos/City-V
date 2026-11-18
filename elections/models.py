@@ -39,6 +39,12 @@ class VotacionDiputacion(models.Model):
         return f"Diputación - Sección {self.seccion}"
 
 class Promovido(models.Model):
+    class Meta:
+        indexes = [
+            models.Index(fields=['seccion_electoral'], name='promovido_seccion_idx'),
+            models.Index(fields=['nombre_completo', 'telefono_movil'], name='promovido_identidad_idx'),
+        ]
+
     # 1. Datos Personales
     nombre_completo = models.CharField(max_length=255)
     telefono_movil = models.CharField(max_length=20, blank=True, null=True)

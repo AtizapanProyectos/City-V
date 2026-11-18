@@ -689,3 +689,88 @@ h2.titulo-seccion::before { content: ""; width: 8px; height: 8px; border-radius:
     #stat-meta-container { padding: 4px 10px; font-size: 9.5px; }
     .dona-lienzo { width: clamp(85px, 11.5vh, 115px); height: clamp(85px, 11.5vh, 115px); }
 }
+/* Bounded loading and directory navigation */
+[hidden] { display: none !important; }
+#mobile-workspace, #mobile-navigation { display: none; }
+.promovidos-pager { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; padding: 10px 0; font-size: 12px; }
+.promovidos-pager button, #dashboard-notice button, .mobile-result-tools button { border: 1px solid var(--c-border); background: #fff; color: var(--pan-navy); border-radius: 10px; padding: 9px 12px; font-weight: 700; }
+button:disabled { cursor: wait; opacity: .55; }
+#dashboard-notice { position: fixed; top: 12px; right: 12px; z-index: 12000; width: min(460px, calc(100vw - 24px)); max-height: 45dvh; overflow: auto; background: #fff; border: 1px solid #b8252d; border-radius: 14px; padding: 16px; color: #263829; box-shadow: var(--shadow-pop); overflow-wrap: anywhere; font-size: 13px; }
+#dashboard-notice button { margin: 8px 4px 0 0; }
+.pantalla-carga { inset: auto 16px 18px auto; width: min(410px, calc(100vw - 32px)); background: #fff; border: 1px solid var(--c-border); border-radius: 14px; padding: 14px; flex-direction: row; gap: 14px; box-shadow: var(--shadow-pop); pointer-events: none; backdrop-filter: none; }
+.pantalla-carga h3 { font-size: 14px; }
+.pantalla-carga p { font-size: 12px; margin: 5px 0 0; }
+.pantalla-carga .spinner { flex-shrink: 0; width: 28px; height: 28px; }
+#mobile-navigation { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+@media (max-width: 1024px) {
+    body.mobile-dashboard { overflow-x: hidden; overflow-y: auto; height: auto; min-height: 100dvh; }
+    .mobile-dashboard #dashboard-layout { display: none !important; }
+    .mobile-dashboard #mobile-workspace { display: block; padding: 0 0 calc(76px + env(safe-area-inset-bottom, 0px)); min-height: 100dvh; width: 100%; }
+    .mobile-dashboard #mobile-workspace > section { min-width: 0; }
+    .mobile-dashboard #mobile-navigation { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); position: fixed; bottom: 0; left: 0; right: 0; z-index: 3000; background: #fff; box-shadow: 0 -4px 20px #14451718; border-top: 1px solid var(--c-border); }
+    #mobile-navigation button { min-height: 64px; padding: 8px 3px; border: none; background: #fff; font-size: 12px; font-weight: 700; color: var(--c-muted); border-top: 3px solid transparent; }
+    #mobile-navigation button[aria-selected="true"] { color: var(--pan-navy); background: var(--pan-sky-pale); border-color: var(--pan-blue); }
+    .mobile-dashboard #mapa-wrapper, .mobile-dashboard #mapa-wrapper.modo-cuadrante { position: relative !important; inset: auto !important; width: 100% !important; height: calc(100dvh - 76px - env(safe-area-inset-bottom, 0px)) !important; min-height: 340px !important; margin: 0; border: 0; border-radius: 0; transition: none; }
+    .mobile-dashboard #mapa-atizapan { height: 100%; width: 100%; }
+    .mobile-dashboard #panel-totales-municipio { position: relative; inset: auto; width: 100%; height: auto; min-height: 0; padding: 18px; overflow: visible; box-shadow: none; }
+    .mobile-dashboard #panel-totales-municipio.oculto { display: none !important; }
+    .mobile-dashboard:not([data-has-section]) #cuadrante-superior-derecho { display: none; }
+    .mobile-dashboard .cuadrante { min-height: 0; height: auto; margin: 12px; overflow: visible; animation: none; }
+    .mobile-dashboard .panel-body { min-width: 0; overflow: visible !important; padding: 0 14px 16px; }
+    .mobile-dashboard .panel-header { padding: 16px 14px 12px; gap: 10px; flex-wrap: wrap; }
+    .mobile-dashboard .panel-header > div { flex-wrap: wrap; }
+    .mobile-dashboard .panel-header h2 { font-size: 17px; }
+    .mobile-dashboard .tabs-container { margin: 0 14px 12px; }
+    .mobile-dashboard .stats-header { padding: 14px; gap: 10px; }
+    .mobile-dashboard .stat-cell .lbl { font-size: 11px; }
+    .mobile-dashboard .stat-cell b { font-size: 15px; }
+    .mobile-dashboard .ganador-row { flex-wrap: wrap; flex-direction: column; }
+    .mobile-dashboard .grafica-principal-wrap { height: 300px; min-height: 300px; flex: none; margin-top: 14px; }
+    .mobile-dashboard .grafica-card-sidebar { height: 290px; }
+    .mobile-dashboard .vista-lista-scroll { min-height: 100px; flex: none; overflow-x: auto; }
+    .mobile-dashboard .tabla-promovidos { font-size: 13px; table-layout: fixed; overflow-wrap: anywhere; }
+    .mobile-dashboard .tabla-promovidos td, .mobile-dashboard .tabla-promovidos th { padding: 11px 7px; }
+    .mobile-dashboard .tabs-promovidos { flex-wrap: wrap; gap: 8px; }
+    .mobile-dashboard .tabs-promovidos > div { flex-wrap: wrap; }
+    .mobile-dashboard button, .mobile-dashboard .close-modal { min-height: 44px; min-width: 44px; font-size: 12px !important; }
+    .mobile-dashboard input, .mobile-dashboard select, .mobile-dashboard textarea { font-size: 16px !important; min-height: 44px; max-width: 100%; }
+    .mobile-dashboard #buscador-contenedor { top: 12px; left: 12px; right: 12px; transform: none; width: auto; max-width: none; padding: 6px 8px; gap: 6px; flex-wrap: wrap; border-radius: 16px; }
+    .mobile-dashboard #input-buscador { flex: 1; width: 90px; min-width: 80px; }
+    .mobile-dashboard #btn-restaurar-mapa { flex-basis: 100%; }
+    .mobile-dashboard #botones-globales-flotantes { top: 135px; left: 12px; transform: none; width: calc(100% - 24px); gap: 8px; flex-wrap: wrap; flex-direction: row; }
+    .mobile-dashboard #botones-globales-flotantes button { min-width: 0; flex: 1 1 130px; padding: 9px !important; }
+    .mobile-dashboard #leyenda-mapa { left: 12px; bottom: 30px; right: auto; width: min(280px, calc(100% - 24px)); padding: 10px; }
+    .mobile-dashboard .leyenda-item { width: auto; font-size: 11px; min-height: 32px; }
+    .mobile-dashboard #leyenda-mapa h4 { font-size: 11px; }
+    .mobile-dashboard .badge-admin-corner { top: auto; bottom: 12px; right: 12px; left: auto; font-size: 10px; }
+    .mobile-dashboard .leaflet-top { top: 240px; }
+    .mobile-dashboard .modal-overlay { height: 100dvh; width: 100%; padding: 12px; align-items: center; }
+    .mobile-dashboard .modal-content, .mobile-dashboard .modal-content.modal-sm { width: 100%; max-height: calc(100dvh - 24px); padding: 22px 14px; overflow-x: hidden; }
+    .mobile-dashboard .modal-content h2 { padding-right: 35px; font-size: 18px; }
+    .mobile-dashboard .close-modal { display: flex; align-items: center; justify-content: center; top: 6px; right: 6px; }
+    .mobile-dashboard .modal-tabla-scroll, .mobile-dashboard .historial-scroll { overflow: auto; max-width: 100%; }
+    .mobile-dashboard .modal-tabla-scroll table { min-width: 650px; table-layout: auto; }
+    .mobile-dashboard .form-encuesta-grid, .mobile-dashboard .form-promovido-grid { grid-template-columns: 1fr !important; }
+    .mobile-dashboard .form-acciones { flex-wrap: wrap; }
+    .mobile-dashboard .escucha-dual-wrap { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); height: auto; gap: 18px; }
+    .mobile-dashboard .dona-candidato, .mobile-dashboard .dona-candidato:nth-child(3) { width: 100%; max-width: none; }
+    .mobile-dashboard .dona-lienzo { width: 130px; height: 130px; }
+    .mobile-dashboard .escucha-comp-wrap { height: 280px; min-height: 280px; flex: none; }
+    .mobile-dashboard .escucha-comp-chips { flex-wrap: wrap; }
+    .mobile-dashboard .mobile-result-tools { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px; background: #fff; }
+    .mobile-upload { margin: 14px; width: calc(100% - 28px); }
+    .mobile-dashboard .pantalla-carga { bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (max-width: 600px) {
+    .mobile-dashboard .escucha-dual-wrap { grid-template-columns: 1fr; }
+    .mobile-dashboard .dona-candidato:nth-child(3) { grid-column: auto; }
+    .mobile-dashboard .dona-candidato { padding: 12px; }
+}
+
+#mapa-wrapper { transition: none; }
+@media (max-width: 1024px) { .mobile-dashboard #mapa-wrapper, .mobile-dashboard .cuadrante, .mobile-dashboard .fade-efecto, .mobile-dashboard .dona-candidato, .mobile-dashboard #panel-totales-municipio { animation: none !important; } }
+
+.tab-metrica { flex-shrink: 0; }
+
+button.close-modal { border: 0; background: transparent; padding: 8px; }

@@ -93,6 +93,7 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': DATA_DIR / 'db.sqlite3',
+        'OPTIONS': {'timeout': 20},
     }
 }
 
@@ -139,4 +140,11 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 STORAGES = {
     'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage'},
     'staticfiles': {'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage'},
+}
+
+# Import timings and counts, without worksheet contents or personal details.
+LOGGING = {
+    'version': 1, 'disable_existing_loggers': False,
+    'handlers': {'import_console': {'class': 'logging.StreamHandler'}},
+    'loggers': {'maps.imports': {'handlers': ['import_console'], 'level': 'INFO', 'propagate': False}},
 }

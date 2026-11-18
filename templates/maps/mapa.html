@@ -3,15 +3,13 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>CityManager · Centro de Mando Electoral Atizapán</title>
 
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap" rel="stylesheet">
-    <script type="text/javascript" src="https://gc.kes.v2.scr.kaspersky-labs.com/7EA5E9BB-55E1-4C31-9C21-4943DDFED2E4/main.js?attr=RtWj8j_PQG4sbQBOg3NCIaa_UoOQCbEhexDwPh5Ibp19jJtM4zlhz2JP4RUb6nYbPLSyg_pEWwlq1DHzhozujkY1pnV8CvcPs3-nIyKYZzu5LcfFyG497e_V8RwvkZaA4nawSE8FSgFy0hl5MPyaHo7Ctec_61gfO5iKNBLXWg63eVKxc8qZJpqLoM96dGgm67SR_Yp0naDitwT8Jjy_XdX-D7W4nE4n9NMR44gCjZNWOGH4Kj94lUR3_eJmoX_EW2L5_c794imjPQ-BB8Tu1A76QRMK2ggMgVUKvkxz5gg2Ay_9ofSY2kBbaIbFAIpYzIvAkVTEHHmWDXTpoKjMCQ" charset="UTF-8"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link rel="stylesheet" href="{% static 'css/mapa.css' %}?v=11.0">
+    <link rel="stylesheet" href="{% static 'vendor/leaflet/leaflet.css' %}" />
+    <link href="{% static 'vendor/montserrat/montserrat.css' %}" rel="stylesheet">
+    <script defer src="{% static 'vendor/chartjs/chart.umd.min.js' %}"></script>
+    <link rel="stylesheet" href="{% static 'css/mapa.css' %}?v=12.0">
 </head>
 <body>
 
@@ -19,10 +17,9 @@
         Procesamiento completado exitosamente
     </div>
 
-    <div id="loading-overlay" class="pantalla-carga" role="alert" aria-busy="true">
+    <div id="loading-overlay" class="pantalla-carga" role="status" aria-live="polite">
         <div class="spinner"></div>
-        <h3>Procesando datos</h3>
-        <p>Actualizando modelos predictivos</p>
+        <div><h3>Procesando datos</h3><p>Puedes seguir usando las demás herramientas.</p></div>
     </div>
 
     <main id="dashboard-layout">
@@ -166,6 +163,8 @@
                     </table>
                 </div>
 
+                <div class="promovidos-pager" aria-label="Páginas del padrón"></div>
+
                 <!-- Sub-vista 2: Cargar Excel desde el cuadrante -->
                 <div id="vista-promovidos-excel" class="drop-zone-quadrant" style="display: none;" onclick="document.getElementById('file-promovidos-global').click()">
                     <div class="drop-zone-inner">
@@ -271,9 +270,9 @@
     </div>
 
     <!-- ============ MODAL · GESTIÓN INTEGRAL DE PROMOVIDOS ============ -->
-    <div id="modal-promovidos" class="modal-overlay">
+    <div id="modal-promovidos" class="modal-overlay" role="dialog" aria-modal="true">
         <div class="modal-content" style="max-width: 1050px;">
-            <span class="close-modal" id="close-modal" role="button" aria-label="Cerrar">&times;</span>
+            <button type="button" class="close-modal" id="close-modal" role="button" aria-label="Cerrar">&times;</button>
             <h2 class="modal-titulo">Padrón y Gestión de Promovidos <span id="modal-label-seccion" style="color: var(--c-magenta);">(Todas)</span></h2>
 
             <div class="tabs-container" style="margin: 0 0 16px; justify-content: space-between; align-items: center;">
@@ -301,6 +300,8 @@
             </div>
 
             <!-- Pestaña 2: Formulario para llenar datos de promovido -->
+            <div class="promovidos-pager" aria-label="Páginas del directorio"></div>
+
             <div id="vista-modal-prom-capturar" style="display: none;">
                 <form id="form-nuevo-promovido" onsubmit="guardarNuevoPromovido(event)">
                     <div class="form-encuesta-grid" style="grid-template-columns: repeat(3, 1fr); gap: 14px;">
@@ -364,9 +365,9 @@
     </div>
 
     <!-- ============ MODAL · GESTIÓN DE ENCUESTAS ============ -->
-    <div id="modal-encuestas" class="modal-overlay">
+    <div id="modal-encuestas" class="modal-overlay" role="dialog" aria-modal="true">
         <div class="modal-content modal-sm" style="max-width: 950px;">
-            <span class="close-modal" onclick="cerrarModalEncuestas()" role="button" aria-label="Cerrar">&times;</span>
+            <button type="button" class="close-modal" onclick="cerrarModalEncuestas()" role="button" aria-label="Cerrar">&times;</button>
             <h2 class="modal-titulo centrado">Gestión de encuestas</h2>
 
             <div class="tabs-container" style="margin: 0 0 18px;">
@@ -438,7 +439,8 @@
         </div>
     </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="{% static 'js/mapa.js' %}?v=11.0"></script>
+    <script defer src="{% static 'vendor/leaflet/leaflet.js' %}"></script>
+    <script defer src="{% static 'js/dashboard.js' %}?v=12.0"></script>
+    <script defer src="{% static 'js/mapa.js' %}?v=12.0"></script>
 </body>
 </html>

@@ -5,7 +5,7 @@ Este proyecto se construye con Railpack y requirements.txt. No utiliza Dockerfil
 ## Configurar el servicio
 
 1. Conectar este repositorio y seleccionar la rama main. La raíz del servicio es la raíz del repositorio (donde está manage.py). Usar Railpack; railway.toml fija ese constructor. No definir un Start Command alternativo: se debe detectar el comando web del Procfile. Dejar vacíos los comandos personalizados de build y pre-deploy.
-2. Crear un volumen persistente exclusivo del servicio y montarlo en /data. Usar una sola réplica y un worker, tal como está en el Procfile, para esta instalación SQLite.
+2. Crear un volumen persistente exclusivo del servicio y montarlo en /data. Usar una sola réplica y un proceso Gunicorn gthread con cuatro hilos, tal como está en el Procfile, para esta instalación SQLite. Las importaciones se serializan dentro de ese proceso y escriben en lotes cortos.
 3. Configurar Variables antes del primer arranque:
    - DATA_DIR=/data
    - DEBUG=False
@@ -85,3 +85,13 @@ Para crear otro administrador, ejecutar python manage.py createsuperuser sobre l
 ## Actualización solicitada de la cuenta admin
 
 La migración configure_admin_access configura una sola vez el usuario admin, correo admin@gmail.com y permisos de usuario activo, staff y superusuario, con la contraseña inicial solicitada por el propietario. Así también corrige los permisos y el acceso en un volumen existente. Las siguientes ejecuciones de migrate no vuelven a restablecer esa contraseña; los cambios posteriores realizados mediante changepassword se conservan.
+
+## Rendimiento y móvil
+
+Hasta 1024 px, el tablero usa pestañas Mapa, Resultados, Promovidos y Escucha; los controles y datos son los mismos que en escritorio. Encuestas se abre desde Resultados. El padrón usa páginas de 50 registros y conserva el total del filtro actual; el endpoint sigue devolviendo el arreglo original si no recibe page o page_size. Con paginación devuelve results, count, page, pages y page_size (máximo 100).
+
+Las lecturas tienen un límite de espera de 15 segundos y las cargas de 120 segundos. No se reintentan escrituras automáticamente. Si se pierde la conexión durante una importación, verificar el padrón antes de volver a cargarla: los lotes ya confirmados pueden haberse conservado. Los rechazos y filas omitidas se informan en el resultado. Si hay coincidencias ambiguas de nombre y teléfono, se reportan sin sobrescribir esos duplicados.
+
+Leaflet, Chart.js y Montserrat se sirven desde static/vendor con sus licencias. Solo las teselas del mapa base se solicitan a Esri; las geometrías electorales siguen siendo locales y utilizables si falla ese proveedor. La migración 0006 agrega índices sin borrar datos. Los logs de importación muestran duración y recuentos, sin contenidos del Excel; el log de acceso de Gunicorn incluye duración en segundos.
+
+Validaciones adicionales: python manage.py test maps.test_performance; node --test scripts/test_dashboard.cjs. Consultar PERFORMANCE.md para resultados de las pruebas y límites de la validación.

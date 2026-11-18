@@ -1,12 +1,12 @@
-import pandas as pd
 import json
 import os
 from decimal import Decimal
-from datetime import datetime
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
-from django.db import connection
-from django.db.models import Sum, Avg, Count
+from django.db import DatabaseError
+from django.db.models import Avg, Count
+from django.core.paginator import Paginator
+from .imports import import_promovidos, serialized_import, atomic_json_write, logger
 from django.utils import timezone
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.conf import settings
@@ -176,10 +176,14 @@ def obtener_datos_totales(request):
         )
         eg_dinamico = { p: (safe_float(promedios.get(f'{p}__avg')) / 100) for p in ['pan', 'pri', 'prd', 'pvem', 'pt', 'mc', 'morena', 'naem'] }
 
+        registros_por_modelo = {
+            VotacionAyuntamiento: list(VotacionAyuntamiento.objects.all()),
+            VotacionDiputacion: list(VotacionDiputacion.objects.all()),
+        }
+
         def get_totales(modelo):
             columnas = ['casillas', 'lista_nominal', 'num_votos_validos', 'pan', 'pri', 'prd', 'pvem', 'pt', 'mc', 'morena', 'naem']
-            agregados = {col: Sum(col) for col in columnas}
-            totales = modelo.objects.aggregate(**agregados)
+            totales = {col: sum(getattr(row, col) or 0 for row in registros_por_modelo[modelo]) for col in columnas}
             for k, v in totales.items():
                 if v is None: totales[k] = 0
             
@@ -202,7 +206,7 @@ def obtener_datos_totales(request):
             return datos
 
         def construir_mapas_secciones(modelo):
-            registros = modelo.objects.all()
+            registros = registros_por_modelo[modelo]
             hist_map = {}
             proy_map = {}
             partidos_list = ['pan', 'pri', 'prd', 'pvem', 'pt', 'mc', 'morena', 'naem']
@@ -242,7 +246,9 @@ def obtener_datos_totales(request):
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 
+@serialized_import
 def procesar_escucha_social(request):
+    import pandas as pd
     if request.method == 'POST':
         archivos = request.FILES.getlist('files')
         # EXIGENCIA EXACTA DE 3 ARCHIVOS
@@ -253,8 +259,7 @@ def procesar_escucha_social(request):
         factor_calculado = 0.6 
         for f in archivos:
             try:
-                df = pd.read_excel(f, sheet_name='Datos analíticos')
-                df = df.iloc[:10] 
+                df = pd.read_excel(f, sheet_name='Datos analíticos', nrows=10)
                 nombre_candidato = str(f.name).replace('.xlsx', '').replace('.xls', '').upper()
                 
                 def get_valor(nombre):
@@ -289,8 +294,7 @@ def procesar_escucha_social(request):
             
         datos_guardar = {'data': resultados, 'factor_global': factor_calculado}
         try:
-            with open(ESCUCHA_FILE, 'w', encoding='utf-8') as f:
-                json.dump(datos_guardar, f)
+            atomic_json_write(ESCUCHA_FILE, datos_guardar)
         except OSError:
             return JsonResponse({'error': 'No se pudo guardar la escucha social en el almacenamiento persistente.'}, status=500)
         return JsonResponse({'status': 'ok', 'data': resultados, 'factor_global': factor_calculado})
@@ -309,41 +313,36 @@ def listar_promovidos(request):
     seccion = request.GET.get('seccion')
     if seccion: promovidos = Promovido.objects.filter(seccion_electoral=seccion).order_by('-id')
     else: promovidos = Promovido.objects.all().order_by('-id')
+    page = None
+    if 'page' in request.GET or 'page_size' in request.GET:
+        try:
+            size = max(1, min(100, int(request.GET.get('page_size', 50))))
+        except (TypeError, ValueError):
+            return JsonResponse({'error': 'Tamaño de página no válido.'}, status=400)
+        page = Paginator(promovidos, size).get_page(request.GET.get('page', 1))
+        promovidos = page.object_list
     data = [{
         'nombre': p.nombre_completo, 'telefono': p.telefono_movil, 'direccion': p.direccion_completa,
         'seccion': p.seccion_electoral, 'medio': p.medio_contacto,
         'fecha': p.fecha_registro.strftime('%d/%m/%Y') if p.fecha_registro else '-', 'estatus': p.estatus
     } for p in promovidos]
+    if page is not None:
+        return JsonResponse({'results': data, 'count': page.paginator.count, 'page': page.number,
+                             'pages': page.paginator.num_pages, 'page_size': page.paginator.per_page})
     return JsonResponse(data, safe=False)
 
+@serialized_import
 def cargar_promovidos(request):
-    if request.method == 'POST' and request.FILES.get('file'):
-        try:
-            excel_file = request.FILES['file']
-            df = pd.read_excel(excel_file, sheet_name='Registro', header=2)
-            df = df.dropna(subset=['Nombre completo'])
-            creados = 0
-            for index, row in df.iterrows(): 
-                try:
-                    fecha_reg = None
-                    if pd.notna(row['Fecha de registro']):
-                        fecha_reg = datetime.strptime(row['Fecha de registro'], "%d/%m/%Y").date() if isinstance(row['Fecha de registro'], str) else row['Fecha de registro'].date()
-                    obj, created = Promovido.objects.update_or_create(
-                        nombre_completo=str(row['Nombre completo']).strip(),
-                        telefono_movil=str(row['Teléfono móvil']).strip() if pd.notna(row['Teléfono móvil']) else "",
-                        defaults={
-                            'seccion_electoral': int(row['Sección electoral']) if pd.notna(row['Sección electoral']) else None,
-                            'medio_contacto': str(row['Medio de contacto preferido']).strip() if pd.notna(row['Medio de contacto preferido']) else "",
-                            'estatus': str(row['Estatus']).strip() if pd.notna(row['Estatus']) else "",
-                            'fecha_registro': fecha_reg,
-                            'direccion_completa': str(row['Dirección completa']).strip() if pd.notna(row['Dirección completa']) else ""
-                        }
-                    )
-                    if created: creados += 1
-                except Exception: continue
-            return JsonResponse({'status': 'ok', 'mensaje': f'Se procesaron correctamente. Nuevos: {creados}'})
-        except Exception as e: return JsonResponse({'error': str(e)}, status=400)
-    return JsonResponse({'error': 'No se envió ningún archivo'}, status=400)
+    if request.method != 'POST' or not request.FILES.get('file'):
+        return JsonResponse({'error': 'No se envió ningún archivo'}, status=400)
+    try:
+        return JsonResponse(import_promovidos(request.FILES['file']))
+    except (ValueError, KeyError, ImportError, OSError, EOFError) as error:
+        return JsonResponse({'error': str(error)}, status=400)
+    except DatabaseError:
+        logger.exception('promovidos_import database failure')
+        return JsonResponse({'error': 'La importación no se completó. Revisa el padrón antes de reintentar: los lotes anteriores pueden haberse guardado.'}, status=503)
+
 
 def guardar_promovido(request):
     if request.method != 'POST': return JsonResponse({'status': 'error', 'msg': 'Método no permitido'}, status=405)
