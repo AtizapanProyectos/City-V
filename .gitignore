@@ -37,7 +37,6 @@ venv.bak/
 # Django
 *.log
 local_settings.py
-db.sqlite3
 db.sqlite3-journal
 media/
 staticfiles/
@@ -64,7 +63,6 @@ Thumbs.db
 desktop.ini
 
 # Mutable data, backups, and deployment verification
-*.sqlite3
 *.sqlite3-*
 maps/escucha_data.json
 escucha_data.json
@@ -72,3 +70,5 @@ backups/
 .deployment-tools/
 .deployment-checks/
 !.env.example
+
+# Publish the application database; keep SQLite transaction sidecars private.

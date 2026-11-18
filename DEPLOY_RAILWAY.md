@@ -1,6 +1,6 @@
 # Railway: Python 3.12, Procfile y SQLite persistente
 
-Este proyecto se construye con Railpack y requirements.txt. No utiliza Dockerfile ni comandos Docker. El Procfile ejecuta migraciones, collectstatic y Gunicorn; no importa Excel ni reemplaza los datos al reiniciar.
+Este proyecto se construye con Railpack y requirements.txt. No utiliza Dockerfile ni comandos Docker. El Procfile inicializa SQLite desde la base incluida en Git si el volumen está vacío, y ejecuta migraciones, collectstatic y Gunicorn; no importa Excel ni reemplaza los datos al reiniciar.
 
 ## Configurar el servicio
 
@@ -12,11 +12,11 @@ Este proyecto se construye con Railpack y requirements.txt. No utiliza Dockerfil
    - SECRET_KEY: valor aleatorio secreto de al menos 50 caracteres.
    - APP_LOGIN_USER y APP_LOGIN_PASSWORD: credenciales propias del formulario de acceso. No tienen valores predeterminados y son independientes de los usuarios del administrador Django.
 4. Generar un dominio público. Railway proporciona RAILWAY_PUBLIC_DOMAIN y Django lo agrega a hosts y orígenes CSRF. Para dominios propios, definir ALLOWED_HOSTS con hosts separados por comas, sin esquema ni puerto, y CSRF_TRUSTED_ORIGINS con orígenes HTTPS separados por comas. No usar *.
-5. Transferir los datos antes del primer arranque normal, siguiendo la siguiente sección. Después activar el despliegue automático desde main.
+5. db.sqlite3 está incluido en el repositorio por solicitud del propietario. En el primer arranque, si /data/db.sqlite3 no existe, se inicializa desde esa base con la API de backup de SQLite. Si ya existe una base en el volumen, se conserva sin reemplazarla. Los siguientes despliegues no sobrescriben los datos de producción. Para transferir JSON y media, o restaurar manualmente una base, seguir la siguiente sección. Después activar el despliegue automático desde main.
 
 .env.example es una plantilla: Django no carga archivos .env automáticamente. Mantener los secretos en Railway Variables o en el entorno de la terminal. Los tres archivos de versión solicitan Python 3.12. SSL se reconoce mediante X-Forwarded-Proto; las cookies de sesión y CSRF requieren HTTPS con DEBUG=False. HSTS dura una hora; no se habilitan preload ni includeSubDomains sin verificar todos los subdominios.
 
-## Transferir los datos actuales sin publicarlos
+## Respaldo y transferencia manual de datos adicionales
 
 Desde la raíz de este proyecto, con Python 3.12 y la aplicación local detenida para que el JSON y media no cambien durante la copia:
 
@@ -26,7 +26,7 @@ python scripts/backup_data.py backups/initial
 
 El script usa la API de backup de SQLite y comprueba su integridad. Copia el JSON actual de maps/escucha_data.json y media/, si existen. Se niega a sobrescribir un directorio de respaldo. Para respaldar un volumen ya existente, usar --data-dir con su ruta.
 
-Con Railway CLI actualizado, ejecutar railway login y railway link, seleccionando el proyecto, entorno y servicio correctos. En un volumen nuevo y vacío, cargar cada elemento de backups/initial en la raíz del volumen (la raíz corresponde a /data dentro del servicio):
+Con Railway CLI actualizado, ejecutar railway login y railway link, seleccionando el proyecto, entorno y servicio correctos. Para una restauración manual en un volumen nuevo y vacío, cargar cada elemento de backups/initial en la raíz del volumen (la raíz corresponde a /data dentro del servicio):
 
 ~~~powershell
 railway volume files upload ./backups/initial/db.sqlite3 /db.sqlite3
@@ -38,7 +38,7 @@ Omitir JSON o media si no existen en el respaldo. La CLI permite elegir el volum
 
 Si la carga requiere un servicio en ejecución, mantenerlo temporalmente sin tráfico público con Start Command = sleep infinity, cargar los archivos, quitar ese Start Command y desplegar de nuevo para usar el Procfile. No importar Excel para reconstruir una base que ya fue transferida.
 
-Confirmar que /data contiene db.sqlite3, escucha_data.json y media/ según corresponda. En el primer arranque normal, migrate conserva los registros existentes y aplica únicamente las migraciones pendientes. Mantener el respaldo local fuera de Git.
+Si se usa la inicialización automática, no es necesario cargar db.sqlite3 manualmente. El JSON y media no están versionados y se transfieren aparte si se necesitan. Confirmar que /data contiene db.sqlite3, escucha_data.json y media/ según corresponda. En el primer arranque normal, migrate conserva los registros existentes y aplica únicamente las migraciones pendientes. Mantener el respaldo local fuera de Git.
 
 Documentación oficial de transferencia: https://docs.railway.com/cli/volume
 
@@ -51,9 +51,11 @@ python -m pip install -r requirements.txt
 python -m pip check
 python manage.py check
 python manage.py check --deploy
+python scripts/prepare_data.py
 python manage.py migrate --noinput
 python manage.py collectstatic --noinput
 python manage.py test maps.test_deployment
+python -m unittest discover -s scripts -p test_prepare_data.py
 ~~~
 
 check --deploy puede advertir sobre HSTS includeSubDomains/preload, que requieren una decisión sobre todos los dominios antes de activarse. No ignorar otras advertencias sin investigarlas. Los tests usan HTTPS y verifican login, CSRF, hosts, estáticos y el archivo persistente.
@@ -66,4 +68,10 @@ Sin DATA_DIR se conservan db.sqlite3, maps/escucha_data.json y media/ en sus ubi
 
 ## Git
 
-Se excluyen bases, JSON mutable, media, entornos, secretos y respaldos del estado publicado. En City E se conserva el historial heredado; retirar archivos del índice no elimina sus versiones de commits antiguos. City_a y City N no forman parte de estos cambios.
+db.sqlite3 está versionado y publicado por autorización explícita del propietario. Se excluyen sus archivos temporales de transacción, JSON mutable, media, entornos, secretos y respaldos del estado publicado. En City E se conserva el historial heredado; retirar archivos del índice no elimina sus versiones de commits antiguos. City_a y City N no forman parte de estos cambios.
+
+## Error SECRET_KEY en Railway
+
+Si los logs muestran ImproperlyConfigured: Set SECRET_KEY before starting in production., agregar SECRET_KEY en Variables del servicio y aplicar el despliegue. Usar una clave aleatoria privada, diferente por servicio, sin comillas; se puede generar con python -c "import secrets; print(secrets.token_urlsafe(64))". No incluir la clave en Git ni activar DEBUG para evitar el error. Configurar también APP_LOGIN_USER y APP_LOGIN_PASSWORD para poder entrar al mapa.
+
+Si el volumen ya contiene una base vacía generada en un despliegue anterior, el inicializador la conserva. Para reemplazarla por la versión local, respaldar primero la base remota, detener la aplicación y restaurar manualmente la copia local mediante el explorador del volumen; nunca sobrescribir una base con registros nuevos.
